@@ -182,8 +182,8 @@ def test_feed_freshness_and_network_cache(monkeypatch, stale):
     monkeypatch.setattr(httpx.AsyncClient, 'get', get)
     rt = RealtimeFeed('https://example.org/feed')
     async def run():
-        first = await rt.snapshot()
-        second = await rt.snapshot()
+        first = await rt._refresh()
+        second = await rt._refresh()
         return first, second
     first, second = asyncio.run(run())
     assert first == second and len(calls) == 1
@@ -272,9 +272,10 @@ def test_static_api_returns_while_realtime_is_blocked(provider):
             return Snapshot()
 
         provider.realtime.url = "https://example.org/feed"
-        provider.realtime.snapshot = slow_snapshot
-        transport = httpx.ASGITransport(app=create_app(provider))
-        async with httpx.AsyncClient(transport=transport, base_url='http://test') as client:
+        provider.realtime._refresh = slow_snapshot
+        application = create_app(provider)
+        transport = httpx.ASGITransport(app=application)
+        async with application.router.lifespan_context(application), httpx.AsyncClient(transport=transport, base_url='http://test') as client:
             pending = asyncio.create_task(client.get('/api/board?stop_id=s&realtime=true'))
             await asyncio.wait_for(started.wait(), 1)
             try:
@@ -287,7 +288,7 @@ def test_static_api_returns_while_realtime_is_blocked(provider):
             finally:
                 release.set()
                 await pending
-                await provider.realtime.refresh_task
+        assert provider.realtime.refresh_task is None
     asyncio.run(run())
 
 

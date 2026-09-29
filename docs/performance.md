@@ -61,7 +61,7 @@ Auch bei aktiviertem RIS-Zusatzprovider umgeht der erste Abruf alle Netzquellen.
 GTFS-RT wird einmal pro Feedabruf in ein Dictionary mit `(trip_id, start_date)`
 eingeordnet. Das Fahrtmatching benötigt keine SQLite-Abfragen; nur die Halte der
 gefundenen Fahrt werden nach Sequenz bzw. Stop-ID geprüft. Der gemeinsame
-10-Sekunden-Feedcache und dessen Lock verhindern doppelte Downloads. Protobuf-
+30-Sekunden-Hintergrundworker und dessen Lock verhindern doppelte Downloads. Protobuf-
 Parsing und Aufbau des deutschlandweiten Dictionaries laufen jetzt im Workerthread,
 um den API-Eventloop währenddessen nicht zu blockieren. Frischeprüfung,
 Verkehrstag, NO_DATA, Ausfälle und die Unterscheidung zwischen fehlender Prognose
@@ -104,3 +104,17 @@ werden anschließend exakt auf Selektoren und Gültigkeit geprüft. Das vermeide
 den bisherigen Vergleich jeder lokalen Fahrt mit allen 63.000 Meldungen. Diese
 Verarbeitung läuft ebenfalls außerhalb des API-Eventloops. Regressionstests
 vergleichen indexierte Ergebnisse mit der vollständigen Selektorprüfung.
+
+## Zentraler Upstream-Cache
+
+Der FastAPI-Lifespan startet und beendet genau einen Feedworker im Backend.
+Dieser lädt sofort beim Start, danach frühestens 30 Sekunden nach Ende des
+vorigen Versuchs. Langsame Downloads überlappen nicht, ausgefallene Downloads
+werden nicht durch Client-Anfragen erneut angestoßen. `current_snapshot` liest
+nur den Cache, auch wenn dieser leer oder veraltet ist. Ein noch frischer Cache
+bleibt bei einem fehlgeschlagenen Refresh nutzbar; die 180-Sekunden-Frischegrenze
+bleibt wirksam. Der RIS-Zusatzprovider reicht den Lifecycle an den GTFS-Provider
+weiter. Der Docker-Start legt einen Uvicorn-Worker explizit fest.
+
+Regressionstests prüfen 30 Sekunden Mindestpause, automatisches Laden ohne
+Clients, wiederholte und parallele reine Cachezugriffe sowie Shutdown-Cancellation.

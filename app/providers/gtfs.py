@@ -12,6 +12,12 @@ class GTFSProvider(GTFSStaticProvider):
         super().__init__(path)
         self.realtime = realtime
 
+    async def start(self):
+        await self.realtime.start()
+
+    async def stop(self):
+        await self.realtime.stop()
+
     async def board_candidates(self, stop_id, kind, now):
         (station, departures), (snapshot, realtime_status) = await asyncio.gather(
             asyncio.to_thread(self.scheduled, stop_id, kind, now), self.realtime.current_snapshot())

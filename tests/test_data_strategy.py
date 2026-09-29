@@ -57,7 +57,7 @@ def test_realtime_unavailable_is_normal_fallback(provider, monkeypatch, failure)
     assert all(d.realtime is None for d in board.journeys)
 
 
-def test_realtime_ten_second_cache_and_refresh(monkeypatch):
+def test_realtime_thirty_second_cache_and_refresh(monkeypatch):
     calls = []
     async def get(self, url, headers):
         calls.append(url)
@@ -65,14 +65,14 @@ def test_realtime_ten_second_cache_and_refresh(monkeypatch):
     monkeypatch.setattr(httpx.AsyncClient, 'get', get)
     rt = RealtimeFeed('https://example.org/feed')
     async def run():
-        await rt.snapshot()
-        rt.checked -= 9
-        await rt.snapshot()
+        await rt._refresh()
+        rt.checked -= 29
+        await rt._refresh()
         assert len(calls) == 1
         rt.checked -= 2
-        await rt.snapshot()
+        await rt._refresh()
     asyncio.run(run())
-    assert FEED_INTERVAL == 10 and len(calls) == 2
+    assert FEED_INTERVAL == 30 and len(calls) == 2
 
 
 def test_cached_feed_expires_even_before_next_request(monkeypatch):
@@ -82,9 +82,9 @@ def test_cached_feed_expires_even_before_next_request(monkeypatch):
     monkeypatch.setattr(httpx.AsyncClient, 'get', get)
     rt = RealtimeFeed('https://example.org/feed')
     async def run():
-        await rt.snapshot()
+        await rt._refresh()
         rt.cached.timestamp -= 1000
-        return await rt.snapshot()
+        return await rt._refresh()
     assert asyncio.run(run()).timestamp == 0
 
 
@@ -147,7 +147,7 @@ def test_service_alert_feed_is_loaded(provider, monkeypatch):
     monkeypatch.setattr(httpx.AsyncClient, 'get', get)
     provider.realtime = RealtimeFeed('https://example.org/feed')
     async def loaded_board():
-        await provider.realtime.snapshot()
+        await provider.realtime._refresh()
         return await provider.board('s', 'departures', NOW)
     board = asyncio.run(loaded_board())
     assert board.alerts[0].header == 'Bauarbeiten'
@@ -278,16 +278,22 @@ def test_background_download_shared_then_available(monkeypatch):
             return httpx.Response(200, content=feed().SerializeToString(), request=httpx.Request('GET', url))
         monkeypatch.setattr(httpx.AsyncClient, 'get', get)
         rt = RealtimeFeed('https://example.org/feed')
+        await rt.start()
         for _ in range(5):
             _, status = await rt.current_snapshot()
             assert status == 'loading'
         await asyncio.sleep(0)
         assert len(calls) == 1
         release.set()
-        await rt.refresh_task
+        async def loaded():
+            while not rt.cached.fresh():
+                await asyncio.sleep(.001)
+        await asyncio.wait_for(loaded(), 1)
         snapshot, status = await rt.current_snapshot()
         assert status == 'available' and snapshot.fresh()
         assert len(calls) == 1
+        await rt.stop()
+        assert rt.refresh_task is None
     asyncio.run(run())
 
 
@@ -351,3 +357,53 @@ def test_alert_content_dedup_keeps_distinct_descriptions_and_trip_scope():
     assert len(first.alerts) == len(second.alerts) == 2
     assert first.alerts[0].id == 'gtfs-rt:first'
     assert second.alerts[0].id == 'gtfs-rt:second'
+
+
+def test_cache_reads_never_trigger_upstream_even_when_expired(monkeypatch):
+    from app.providers.gtfs_realtime import Snapshot
+    async def forbidden(*args, **kwargs):
+        raise AssertionError('Client triggered upstream')
+    monkeypatch.setattr(httpx.AsyncClient, 'get', forbidden)
+    async def run():
+        rt = RealtimeFeed('https://example.org/feed')
+        for stamp in (0, int(time.time()), int(time.time()) - 1000):
+            rt.cached = Snapshot(timestamp=stamp)
+            results = await asyncio.gather(*(rt.current_snapshot() for _ in range(50)))
+            assert all(status == ('available' if stamp and time.time()-stamp < 180 else 'unavailable')
+                       for _, status in results)
+            assert rt.refresh_task is None
+    asyncio.run(run())
+
+
+def test_lifespan_refreshes_without_clients_and_stops(monkeypatch, provider):
+    import app.providers.gtfs_realtime as rt_module
+    original_sleep = asyncio.sleep
+    waits, calls = [], []
+    async def controlled_sleep(delay):
+        if delay != FEED_INTERVAL:
+            return await original_sleep(delay)
+        waits.append(delay)
+        if len(waits) == 1:
+            # Advance only the refresh guard, avoiding a real 30-second test.
+            provider.realtime.checked -= FEED_INTERVAL
+            return
+        await asyncio.Event().wait()
+    async def get(self, url, headers):
+        calls.append(url)
+        return httpx.Response(200, content=feed().SerializeToString(), request=httpx.Request('GET', url))
+    monkeypatch.setattr(httpx.AsyncClient, 'get', get)
+    monkeypatch.setattr(rt_module.asyncio, 'sleep', controlled_sleep)
+    provider.realtime = RealtimeFeed('https://example.org/feed')
+    async def run():
+        application = create_app(provider)
+        async with application.router.lifespan_context(application):
+            task = provider.realtime.refresh_task
+            await provider.start()
+            assert provider.realtime.refresh_task is task
+            async def refreshed_twice():
+                while len(waits) < 2:
+                    await original_sleep(.001)
+            await asyncio.wait_for(refreshed_twice(), 1)
+            assert len(calls) == 2 and waits == [30, 30]
+        assert task.done() and provider.realtime.refresh_task is None
+    asyncio.run(run())

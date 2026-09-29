@@ -1,4 +1,5 @@
 from datetime import datetime
+from contextlib import asynccontextmanager
 from pathlib import Path
 from zoneinfo import ZoneInfo
 from typing import Literal
@@ -14,9 +15,19 @@ STATIC = Path(__file__).parent / "static"
 
 
 def create_app(provider: TransitProvider | None = None):
-    application = FastAPI(title="Talli · Abfahrtsmonitor", version="0.1.0")
     if provider is None:
         provider = create_provider()
+    @asynccontextmanager
+    async def lifespan(application):
+        if hasattr(provider, "start"):
+            await provider.start()
+        try:
+            yield
+        finally:
+            if hasattr(provider, "stop"):
+                await provider.stop()
+
+    application = FastAPI(title="Talli · Abfahrtsmonitor", version="0.1.0", lifespan=lifespan)
     application.state.provider = provider
 
     @application.get("/api/stops", response_model=list[Stop])

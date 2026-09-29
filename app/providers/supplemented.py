@@ -10,6 +10,12 @@ class SupplementedProvider:
         self.ris = ris
         self.trip_map = trip_map
 
+    async def start(self):
+        await self.primary.start()
+
+    async def stop(self):
+        await self.primary.stop()
+
     def search(self, query):
         return self.primary.search(query)
 

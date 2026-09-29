@@ -1,5 +1,6 @@
 """GTFS-RT data stays in this adapter; only normalized fields leave it."""
 import asyncio
+from contextlib import suppress
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta, timezone
 import logging
@@ -13,7 +14,7 @@ from ..models import Departure, BoardKind, ServiceAlert, alert_content_key
 
 log = logging.getLogger(__name__)
 DEFAULT_FEED_URL = "https://realtime.gtfs.de/realtime-free.pb"
-FEED_INTERVAL = 10
+FEED_INTERVAL = 30
 MAX_AGE = 180
 DOWNLOAD_TIMEOUT = 120
 
@@ -37,25 +38,40 @@ class RealtimeFeed:
         self.checked = float('-inf')
         self.cached = Snapshot()
         self.refresh_task = None
+        self.refreshing = False
+
+    async def start(self):
+        if self.url and (self.refresh_task is None or self.refresh_task.done()):
+            self.refreshing = True
+            self.refresh_task = asyncio.create_task(self._run(), name="gtfs-realtime-refresh")
+
+    async def stop(self):
+        if self.refresh_task is not None:
+            self.refresh_task.cancel()
+            with suppress(asyncio.CancelledError):
+                await self.refresh_task
+            self.refresh_task = None
+        self.refreshing = False
+
+    async def _run(self):
+        while True:
+            await self._refresh()
+            # Wait after completion: slow downloads never overlap or catch up.
+            await asyncio.sleep(FEED_INTERVAL)
 
     async def current_snapshot(self):
-        """Poll the shared download without tying its lifetime to a board request."""
-        if not self.url:
-            return Snapshot(), "unavailable"
-        if (self.refresh_task is None or self.refresh_task.done()) and time.monotonic() - self.checked >= FEED_INTERVAL:
-            self.refresh_task = asyncio.create_task(self.snapshot())
+        """Read only: clients never schedule or await an upstream request."""
         if self.cached.fresh():
             return self.cached, "available"
-        if self.refresh_task is not None and not self.refresh_task.done():
-            return Snapshot(), "loading"
-        return Snapshot(), "unavailable"
+        return Snapshot(), "loading" if self.refreshing else "unavailable"
 
-    async def snapshot(self) -> Snapshot:
+    async def _refresh(self) -> Snapshot:
         if not self.url:
             return Snapshot()
         async with self.lock:
             if time.monotonic() - self.checked < FEED_INTERVAL:
                 return self.cached if self.cached.fresh() else Snapshot()
+            self.refreshing = True
             try:
                 headers = {"Authorization": f"Bearer {self.token}"} if self.token else {}
                 async with asyncio.timeout(DOWNLOAD_TIMEOUT), httpx.AsyncClient(timeout=8, follow_redirects=True) as client:
@@ -64,8 +80,9 @@ class RealtimeFeed:
                 self.cached = await asyncio.to_thread(parse_snapshot, response.content, self.url)
             except (httpx.HTTPError, DecodeError, ValueError, TimeoutError) as error:
                 # Missing realtime is a normal timetable fallback, not an API/UI error.
-                self.cached = Snapshot()
-                log.warning("GTFS-Realtime nicht verfügbar (%s); verwende Sollzeiten", type(error).__name__)
+                log.warning("GTFS-Realtime-Aktualisierung fehlgeschlagen (%s); verwende frischen Cache oder Sollzeiten", type(error).__name__)
+            finally:
+                self.refreshing = False
             self.checked = time.monotonic()
             return self.cached
 
