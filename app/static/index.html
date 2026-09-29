@@ -1,0 +1,37 @@
+<!doctype html>
+<html lang="de" data-theme="dark">
+<head>
+  <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#121820"><meta name="description" content="Deine Haltestelle. Alle Abfahrten. Ein klarer Überblick über Bus und Bahn.">
+  <title>Talli — Deine Abfahrt im Blick</title>
+  <link rel="icon" type="image/svg+xml" href="/static/icon.svg"><link rel="manifest" href="/static/manifest.webmanifest">
+  <link rel="stylesheet" href="/static/style.css"><script src="/static/app.js" defer></script>
+</head>
+<body>
+<a href="#board" class="skip-link">Zur Abfahrtstafel</a>
+<header class="topbar"><a href="/" class="brand" aria-label="Talli Startseite"><span class="brand-icon">↗</span> talli<span class="brand-dot">.</span></a><span class="brand-caption">DEIN ÖPNV. AUF EINEN BLICK.</span><button id="theme" class="icon-button" aria-label="Zum hellen Design wechseln" title="Design wechseln">☼</button></header>
+<main>
+  <section class="intro"><div><div class="eyebrow"><span></span> EINFACH UNTERWEGS</div><h1>Deine nächste Verbindung.</h1><p>Bus und Bahn. Alle Abfahrten. Eine Tafel.</p></div><div class="clock"><time id="clock">--:--</time><span id="date"></span></div></section>
+  <section class="station-tools" aria-label="Haltestelle auswählen">
+    <div class="search-box"><span class="search-symbol" aria-hidden="true">⌕</span><label for="search" class="sr-only">Haltestelle suchen</label><input id="search" autocomplete="off" placeholder="Haltestelle oder Bahnhof suchen …" aria-controls="search-results"><kbd aria-hidden="true">/</kbd><div id="search-results" class="search-results" hidden></div></div>
+    <div class="favorites"><span class="favorites-label">DEINE FAVORITEN</span><div id="favorites"></div><span id="favorites-empty">Mit ☆ deine Haltestelle merken</span></div>
+  </section>
+  <section id="board" class="board" aria-label="Fahrplantafel">
+    <div class="board-header"><div class="station-heading"><span class="station-icon" aria-hidden="true">▥</span><div><div class="eyebrow">HALTESTELLENMONITOR</div><h2 id="station-name">Haltestelle auswählen</h2></div><button id="favorite" class="favorite-toggle" aria-label="Haltestelle als Favorit speichern" aria-pressed="false" disabled>☆</button></div><div class="board-status"><span id="source-badge" class="badge">FAHRPLAN</span><span class="update"><span id="status-dot" class="status-dot"></span><span id="updated">Wird geladen …</span></span></div></div>
+    <div class="board-toolbar"><div class="tabs" role="tablist" aria-label="Anzeigemodus"><button id="departures" role="tab" aria-selected="true" aria-controls="board-panel" class="tab active">↗ <span>Abfahrten</span></button><button id="arrivals" role="tab" aria-selected="false" aria-controls="board-panel" class="tab">↙ <span>Ankünfte</span></button></div><div class="refresh-controls"><label class="auto-label"><input type="checkbox" id="auto" checked><span class="toggle"></span>Auto <span class="auto-seconds">10 s</span></label><button id="refresh" class="icon-button" aria-label="Jetzt aktualisieren" title="Jetzt aktualisieren">↻</button></div></div>
+    <div class="filters"><div class="mode-filters" aria-label="Verkehrsmittel"><button class="mode active" data-mode="all" aria-pressed="true">Alle</button><button class="mode" data-mode="rail" aria-pressed="false">Bahn</button><button class="mode" data-mode="subway" aria-pressed="false">U-Bahn</button><button class="mode" data-mode="tram" aria-pressed="false">Tram</button><button class="mode" data-mode="bus" aria-pressed="false">Bus</button><button class="mode" data-mode="ferry" aria-pressed="false">Fähre</button><button class="mode" data-mode="other" aria-pressed="false">Weitere</button></div><div class="select-filters"><label class="sr-only" for="line">Linie</label><select id="line"><option value="">Alle Linien</option></select><label class="sr-only" for="direction">Richtung oder Herkunft</label><select id="direction"><option value="">Alle Richtungen</option></select></div></div>
+    <div id="notice" class="notice" role="status" hidden></div>
+    <section id="alerts" class="service-alerts" aria-label="Verkehrsmeldungen" hidden></section>
+    <div id="error" class="error" role="alert" hidden></div>
+    <div id="board-panel" role="tabpanel" aria-labelledby="departures">
+      <div class="table-scroll"><table><caption class="sr-only">Verbindungen für die nächsten zwei Stunden. Alle Zeiten in Europe/Berlin.</caption><thead><tr><th scope="col">SOLL / ECHTZEIT</th><th scope="col">LINIE</th><th scope="col" id="direction-title">RICHTUNG</th><th scope="col" class="platform-col">GLEIS / STEIG</th><th scope="col">STATUS</th></tr></thead><tbody id="journeys"></tbody></table></div>
+      <div id="empty" class="empty" hidden><span aria-hidden="true">↗</span><h3>Hier ist gerade alles ruhig.</h3><p>Keine Verbindungen in den nächsten zwei Stunden.</p><button id="reset-filters" class="text-button">Filter zurücksetzen</button></div>
+    </div>
+    <div class="board-footer"><span id="count">Verbindungen werden geladen</span><span>Alle Zeiten in Ortszeit <span class="desktop-only">· Europe/Berlin</span></span></div>
+  </section>
+  <div class="legend"><span><i class="legend-dot green"></i> Echtzeit vorhanden</span><span><i class="legend-dot yellow"></i> Verspätung</span><span><i class="legend-dot gray"></i> Nur Fahrplan</span><span class="legend-note">Dein nächster Halt. Ganz ohne Umwege.</span></div>
+</main>
+<footer class="page-footer"><span><b>talli.</b> Weniger suchen. Besser ankommen.</span><span>Keine Konten. Favoriten bleiben auf deinem Gerät.</span></footer>
+<noscript>Bitte JavaScript aktivieren, um Haltestellen und Verbindungen anzuzeigen.</noscript>
+</body>
+</html>

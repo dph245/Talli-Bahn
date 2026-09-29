@@ -1,0 +1,100 @@
+import asyncio
+from datetime import datetime, timedelta, timezone
+from pathlib import Path
+from zoneinfo import ZoneInfo
+from ..database import connect, validate_schema
+from ..models import Board, BoardKind, Departure, Stop
+
+BERLIN = ZoneInfo("Europe/Berlin")
+
+
+def service_start(day):
+    # GTFS defines the service-day origin as local noon minus twelve elapsed hours.
+    noon = datetime(day.year, day.month, day.day, 12, tzinfo=BERLIN)
+    return noon.astimezone(timezone.utc) - timedelta(hours=12)
+
+
+def mode_for(route_type):
+    if route_type == 0 or 900 <= route_type < 1000:
+        return "tram"
+    if route_type == 1 or route_type in (400, 401, 402):
+        return "subway"
+    if route_type == 2 or 100 <= route_type < 200 or route_type in (300, 403, 404):
+        return "rail"
+    if route_type in (3, 11) or 700 <= route_type < 900:
+        return "bus"
+    if route_type == 4 or 1000 <= route_type < 1100 or route_type == 1200:
+        return "ferry"
+    return "other"
+
+
+class GTFSStaticProvider:
+    def __init__(self, path: Path):
+        validate_schema(path)
+        self.path = path
+
+    def search(self, query):
+        escaped = query.casefold().replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
+        with connect(self.path) as db:
+            rows = db.execute(r"""SELECT stop_id, stop_name FROM stops
+                WHERE search_name LIKE ? ESCAPE '\' AND location_type IN (0,1)
+                AND (parent_station='' OR parent_station IS NULL)
+                ORDER BY CASE WHEN search_name LIKE ? ESCAPE '\' THEN 0 ELSE 1 END, length(stop_name), stop_name LIMIT 20""",
+                (f"%{escaped}%", f"{escaped}%")).fetchall()
+        return [Stop(id=r["stop_id"], name=r["stop_name"]) for r in rows]
+
+    def scheduled(self, stop_id, kind, now):
+        with connect(self.path) as db:
+            station = db.execute("SELECT * FROM stops WHERE stop_id=?", (stop_id,)).fetchone()
+            if not station:
+                raise KeyError(stop_id)
+            children = db.execute("SELECT stop_id FROM stops WHERE parent_station=?", (stop_id,)).fetchall()
+            ids = [stop_id, *(r[0] for r in children)]
+            placeholders = ",".join("?" for _ in ids)
+            maximum = int(db.execute("SELECT value FROM metadata WHERE key='max_time'").fetchone()[0])
+            journeys = []
+            time_column = "departure" if kind == "departures" else "arrival"
+            boarding_column = "pickup_type" if kind == "departures" else "drop_off_type"
+            for offset in range(-(maximum // 86400 + 1), 2):
+                day = now.astimezone(BERLIN).date() + timedelta(days=offset)
+                date = day.strftime("%Y%m%d")
+                start = service_start(day)
+                lower = int((now - timedelta(hours=2) - start).total_seconds())
+                upper = int((now + timedelta(hours=2) - start).total_seconds())
+                if lower > maximum or upper < 0:
+                    continue
+                weekday = "monday tuesday wednesday thursday friday saturday sunday".split()[day.weekday()]
+                sql = f"""WITH active AS (
+                    SELECT service_id FROM calendar WHERE {weekday}=1 AND start_date<=? AND end_date>=?
+                    UNION SELECT service_id FROM calendar_dates WHERE date=? AND exception_type=1
+                    EXCEPT SELECT service_id FROM calendar_dates WHERE date=? AND exception_type=2
+                ) SELECT st.*, t.trip_headsign, r.route_short_name, r.route_long_name, r.route_type, r.route_id, r.agency_id,
+                    a.agency_name, t.direction_id,
+                    s.platform_code,
+                    (SELECT s2.stop_name FROM stop_times a JOIN stops s2 ON s2.stop_id=a.stop_id
+                     WHERE a.trip_id=st.trip_id ORDER BY a.stop_sequence ASC LIMIT 1) AS origin,
+                    (SELECT s2.stop_name FROM stop_times a JOIN stops s2 ON s2.stop_id=a.stop_id
+                     WHERE a.trip_id=st.trip_id ORDER BY a.stop_sequence DESC LIMIT 1) AS terminal
+                FROM stop_times st JOIN trips t ON t.trip_id=st.trip_id
+                JOIN routes r ON r.route_id=t.route_id LEFT JOIN agencies a ON a.agency_id=r.agency_id JOIN stops s ON s.stop_id=st.stop_id
+                WHERE st.stop_id IN ({placeholders}) AND st.{time_column} BETWEEN ? AND ?
+                AND st.{boarding_column}<>1 AND t.service_id IN (SELECT service_id FROM active)"""
+                for r in db.execute(sql, (date, date, date, date, *ids, lower, upper)):
+                    destination = (r["stop_headsign"] or r["trip_headsign"] or r["terminal"]) if kind == "departures" else r["origin"]
+                    journeys.append(Departure(
+                        id=f"{date}:{r['trip_id']}:{r['stop_sequence']}", trip_id=r["trip_id"],
+                        stop_id=r["stop_id"], sequence=r["stop_sequence"], service_date=date,
+                        route_id=r["route_id"], agency_id=r["agency_id"], route_type=r["route_type"],
+                        direction_id=r["direction_id"], operator=r["agency_name"],
+                        line=r["route_short_name"] or r["route_long_name"] or "–",
+                        mode=mode_for(r["route_type"]), destination=destination or "Unbekannt",
+                        scheduled=(start + timedelta(seconds=r[time_column])).astimezone(BERLIN),
+                        platform=r["platform_code"] or None, scheduled_platform=r["platform_code"] or None, source="GTFS"))
+        return Stop(id=station["stop_id"], name=station["stop_name"]), journeys
+
+    async def board(self, stop_id, kind, now):
+        station, journeys = await asyncio.to_thread(self.scheduled, stop_id, kind, now)
+        journeys = [j for j in journeys if now <= j.scheduled <= now + timedelta(hours=2)]
+        journeys.sort(key=lambda j: j.scheduled)
+        return Board(stop=station, kind=kind, journeys=journeys, updated_at=now,
+                     source="GTFS")
