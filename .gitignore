@@ -6,3 +6,4 @@ data/*
 !data/.gitkeep
 .env
 latest.zip
+latest_geamt.zip

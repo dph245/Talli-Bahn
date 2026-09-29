@@ -1,5 +1,6 @@
 from datetime import datetime
 import math
+import unicodedata
 from typing import Literal
 from pydantic import BaseModel, Field, computed_field
 
@@ -17,6 +18,12 @@ class ServiceAlert(BaseModel):
     header: str
     description: str = ""
     source: str
+
+
+def alert_content_key(alert: ServiceAlert):
+    # Entity IDs and source names do not define the passenger-visible content.
+    return tuple(" ".join(unicodedata.normalize("NFC", value).split())
+                 for value in (alert.header, alert.description))
 
 
 class Departure(BaseModel):
@@ -61,6 +68,7 @@ class Board(BaseModel):
     journeys: list[Departure]
     updated_at: datetime
     source: str
+    realtime_status: Literal["loading", "available", "unavailable"] | None = None
     demo: bool = False
     notice: str | None = None
     alerts: list[ServiceAlert] = Field(default_factory=list)

@@ -114,6 +114,7 @@ def test_alert_selector_intersection_language_and_time():
         ('expired', alert(end=int(NOW.timestamp()))),
         ('future', alert(start=int(NOW.timestamp()) + 5000)),
     ]
+    entries[1][1].description_text.translation[0].text = 'Zusätzlicher Linienhinweis'
     boards = apply_alerts([d], entries, 's', NOW)
     assert [a.id for a in boards] == ['gtfs-rt:station']
     assert [a.id for a in d.alerts] == ['gtfs-rt:station', 'gtfs-rt:route']
@@ -145,7 +146,10 @@ def test_service_alert_feed_is_loaded(provider, monkeypatch):
         return httpx.Response(200, content=f.SerializeToString(), request=httpx.Request('GET', url))
     monkeypatch.setattr(httpx.AsyncClient, 'get', get)
     provider.realtime = RealtimeFeed('https://example.org/feed')
-    board = asyncio.run(provider.board('s', 'departures', NOW))
+    async def loaded_board():
+        await provider.realtime.snapshot()
+        return await provider.board('s', 'departures', NOW)
+    board = asyncio.run(loaded_board())
     assert board.alerts[0].header == 'Bauarbeiten'
     assert board.journeys[0].alerts[0].description == 'Bitte Hinweise beachten'
 
@@ -241,3 +245,109 @@ def test_factory_wires_optional_ris(provider, monkeypatch, tmp_path):
     path.write_text(json.dumps({'stations': {'s': '8011160'}, 'trips': {'t': 'ris-trip'}}))
     monkeypatch.setenv('DB_RIS_MAPPING_PATH', str(path))
     assert isinstance(create_provider(), SupplementedProvider)
+
+
+def test_alert_index_preserves_matching_and_excludes_unrelated_entries():
+    from app.providers.gtfs_realtime import Snapshot, index_alerts, matching_alert_entries
+    d = journey()
+    d.route_id, d.agency_id, d.route_type = 'r', 'a', 2
+    trip = alert()
+    trip.informed_entity[0].trip.trip_id = d.trip_id
+    multi = alert({'stop_id': 'elsewhere'})
+    multi.informed_entity.add(route_id='r', agency_id='a')
+    entries = [(str(i), alert({'stop_id': f'unrelated-{i}'})) for i in range(1000)]
+    entries += [('station', alert({'stop_id': 's'})), ('route', alert({'route_id': 'r'})),
+                ('agency', alert({'agency_id': 'a'})), ('type', alert({'route_type': 2})),
+                ('global', alert()), ('trip', trip), ('multi', multi),
+                ('and-mismatch', alert({'stop_id': 's', 'route_id': 'wrong'}))]
+    snapshot = Snapshot(alerts=entries, alert_index=index_alerts(entries))
+    selected = matching_alert_entries(snapshot, [d], 's')
+    assert len(selected) == 8
+    indexed, full = d.model_copy(deep=True), d.model_copy(deep=True)
+    assert apply_alerts([indexed], selected, 's', NOW) == apply_alerts([full], entries, 's', NOW)
+    assert indexed.alerts == full.alerts
+
+
+def test_background_download_shared_then_available(monkeypatch):
+    async def run():
+        release = asyncio.Event()
+        calls = []
+        async def get(self, url, headers):
+            calls.append(url)
+            await release.wait()
+            return httpx.Response(200, content=feed().SerializeToString(), request=httpx.Request('GET', url))
+        monkeypatch.setattr(httpx.AsyncClient, 'get', get)
+        rt = RealtimeFeed('https://example.org/feed')
+        for _ in range(5):
+            _, status = await rt.current_snapshot()
+            assert status == 'loading'
+        await asyncio.sleep(0)
+        assert len(calls) == 1
+        release.set()
+        await rt.refresh_task
+        snapshot, status = await rt.current_snapshot()
+        assert status == 'available' and snapshot.fresh()
+        assert len(calls) == 1
+    asyncio.run(run())
+
+
+def provenance_alert(text='Echtzeitdaten aufbereitet von GTFS.de, bereitgestellt von DELFI'):
+    a = gtfs.Alert(cause=gtfs.Alert.UNKNOWN_CAUSE, effect=gtfs.Alert.UNKNOWN_EFFECT,
+                   severity_level=gtfs.Alert.INFO)
+    a.informed_entity.add().trip.trip_id = 't'
+    a.description_text.translation.add(text=text, language='de')
+    return a
+
+
+def test_provenance_classification_uses_source_fields_and_content():
+    from app.providers.gtfs_realtime import is_provenance_alert, DEFAULT_FEED_URL
+    a = provenance_alert()
+    assert is_provenance_alert(a, DEFAULT_FEED_URL)
+    assert not is_provenance_alert(a, 'https://example.org/feed')
+    assert is_provenance_alert(provenance_alert(
+        'Realtime data processed by GTFS.de, provided by DELFI'), DEFAULT_FEED_URL)
+    assert is_provenance_alert(provenance_alert(
+        'Echtzeitdaten aufbereitet von GTFS.de, bereitgestellt von opentransportdata.swiss'), DEFAULT_FEED_URL)
+    for text in ['Rollstuhlgeeignet', 'Niederflur', 'Rolltreppe am Bahnhof außer Betrieb',
+                 'Informationen auf GTFS.de',
+                 'Echtzeitdaten aufbereitet von GTFS.de, bereitgestellt von DELFI. Zug fällt aus.',
+                 'Echtzeitdaten aufbereitet von GTFS.de, bereitgestellt von DELFI\nZug fällt aus']:
+        assert not is_provenance_alert(provenance_alert(text), DEFAULT_FEED_URL)
+    a.header_text.translation.add(text='Zug fällt aus', language='de')
+    assert not is_provenance_alert(a, DEFAULT_FEED_URL)
+    a.ClearField('header_text')
+    a.effect = gtfs.Alert.NO_SERVICE
+    assert not is_provenance_alert(a, DEFAULT_FEED_URL)
+
+
+def test_provenance_removed_before_indexing_without_removing_trip_updates():
+    from app.providers.gtfs_realtime import parse_snapshot, DEFAULT_FEED_URL
+    f = feed()
+    f.entity.add(id='metadata').alert.CopyFrom(provenance_alert())
+    f.entity.add(id='accessibility').alert.CopyFrom(provenance_alert('Rollstuhlgeeignet'))
+    f.entity.add(id='prediction').trip_update.trip.trip_id = 't'
+    snapshot = parse_snapshot(f.SerializeToString(), DEFAULT_FEED_URL)
+    assert [key for key, _ in snapshot.alerts] == ['accessibility']
+    assert snapshot.alert_index == {('trip', 't'): {0}}
+    assert ('t', '') in snapshot.updates
+
+
+def test_alert_content_dedup_keeps_distinct_descriptions_and_trip_scope():
+    from app.providers.gtfs_realtime import index_alerts, matching_alert_entries, Snapshot
+    first, second = journey(), journey()
+    second.trip_id = 'other'
+    a, b = alert(), alert()
+    a.informed_entity[0].trip.trip_id = 't'
+    b.informed_entity[0].trip.trip_id = 'other'
+    different = alert()
+    different.description_text.translation[0].text = 'Anderer Ersatzhalt'
+    duplicate = alert()
+    duplicate.description_text.translation[0].text = ' Bitte   Hinweise beachten '
+    entries = [('first', a), ('second', b), ('duplicate', duplicate), ('different', different)]
+    snapshot = Snapshot(alerts=entries, alert_index=index_alerts(entries))
+    selected = matching_alert_entries(snapshot, [first, second], 's')
+    board = apply_alerts([first, second], selected, 's', NOW)
+    assert len(board) == 2
+    assert len(first.alerts) == len(second.alerts) == 2
+    assert first.alerts[0].id == 'gtfs-rt:first'
+    assert second.alerts[0].id == 'gtfs-rt:second'

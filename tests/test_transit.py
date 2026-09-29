@@ -259,3 +259,41 @@ def test_provider_factory_selection(monkeypatch, provider, tmp_path):
     monkeypatch.setenv('TRANSIT_PROVIDER', 'unknown')
     with pytest.raises(RuntimeError, match='TRANSIT_PROVIDER'):
         create_provider()
+
+
+def test_static_api_returns_while_realtime_is_blocked(provider):
+    async def run():
+        started, release = asyncio.Event(), asyncio.Event()
+
+        async def slow_snapshot():
+            from app.providers.gtfs_realtime import Snapshot
+            started.set()
+            await release.wait()
+            return Snapshot()
+
+        provider.realtime.url = "https://example.org/feed"
+        provider.realtime.snapshot = slow_snapshot
+        transport = httpx.ASGITransport(app=create_app(provider))
+        async with httpx.AsyncClient(transport=transport, base_url='http://test') as client:
+            pending = asyncio.create_task(client.get('/api/board?stop_id=s&realtime=true'))
+            await asyncio.wait_for(started.wait(), 1)
+            try:
+                response = await asyncio.wait_for(client.get('/api/board?stop_id=s&realtime=false'), 1)
+                assert response.status_code == 200
+                assert response.json()['source'] == 'GTFS'
+                realtime = await asyncio.wait_for(pending, 1)
+                assert realtime.json()["realtime_status"] == "loading"
+                assert not provider.realtime.refresh_task.done()
+            finally:
+                release.set()
+                await pending
+                await provider.realtime.refresh_task
+    asyncio.run(run())
+
+
+def test_static_query_skips_past_events_but_realtime_keeps_candidates(provider):
+    now = NOW.replace(minute=10)
+    static = asyncio.run(provider.static_board('s', 'departures', now))
+    assert [j.trip_id for j in static.journeys] == ['added']
+    _, candidates = provider.scheduled('s', 'departures', now)
+    assert {j.trip_id for j in candidates} == {'t', 'added'}

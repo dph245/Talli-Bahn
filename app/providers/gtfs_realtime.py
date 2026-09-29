@@ -3,16 +3,19 @@ import asyncio
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta, timezone
 import logging
+import re
+from urllib.parse import urlsplit
 import time
 import httpx
 from google.protobuf.message import DecodeError
 from google.transit import gtfs_realtime_pb2 as gtfs
-from ..models import Departure, BoardKind, ServiceAlert
+from ..models import Departure, BoardKind, ServiceAlert, alert_content_key
 
 log = logging.getLogger(__name__)
 DEFAULT_FEED_URL = "https://realtime.gtfs.de/realtime-free.pb"
 FEED_INTERVAL = 10
 MAX_AGE = 180
+DOWNLOAD_TIMEOUT = 120
 
 
 @dataclass
@@ -20,6 +23,7 @@ class Snapshot:
     updates: dict = field(default_factory=dict)
     alerts: list = field(default_factory=list)
     timestamp: int = 0
+    alert_index: dict | None = None
 
     def fresh(self):
         return self.timestamp > 0 and -60 <= time.time() - self.timestamp <= MAX_AGE
@@ -32,6 +36,19 @@ class RealtimeFeed:
         self.lock = asyncio.Lock()
         self.checked = float('-inf')
         self.cached = Snapshot()
+        self.refresh_task = None
+
+    async def current_snapshot(self):
+        """Poll the shared download without tying its lifetime to a board request."""
+        if not self.url:
+            return Snapshot(), "unavailable"
+        if (self.refresh_task is None or self.refresh_task.done()) and time.monotonic() - self.checked >= FEED_INTERVAL:
+            self.refresh_task = asyncio.create_task(self.snapshot())
+        if self.cached.fresh():
+            return self.cached, "available"
+        if self.refresh_task is not None and not self.refresh_task.done():
+            return Snapshot(), "loading"
+        return Snapshot(), "unavailable"
 
     async def snapshot(self) -> Snapshot:
         if not self.url:
@@ -41,33 +58,63 @@ class RealtimeFeed:
                 return self.cached if self.cached.fresh() else Snapshot()
             try:
                 headers = {"Authorization": f"Bearer {self.token}"} if self.token else {}
-                async with httpx.AsyncClient(timeout=8, follow_redirects=True) as client:
+                async with asyncio.timeout(DOWNLOAD_TIMEOUT), httpx.AsyncClient(timeout=8, follow_redirects=True) as client:
                     response = await client.get(self.url, headers=headers)
                     response.raise_for_status()
-                feed = gtfs.FeedMessage()
-                feed.ParseFromString(response.content)
-                snapshot = Snapshot(timestamp=feed.header.timestamp)
-                if not feed.IsInitialized() or not snapshot.fresh():
-                    raise ValueError("Feed unvollständig oder veraltet")
-                if feed.header.incrementality == gtfs.FeedHeader.DIFFERENTIAL:
-                    raise ValueError("Differenzielle Feeds werden nicht unterstützt")
-                for entity in feed.entity:
-                    if entity.is_deleted:
-                        continue
-                    if entity.HasField("trip_update"):
-                        update = entity.trip_update
-                        if update.timestamp and not -60 <= time.time() - update.timestamp <= MAX_AGE:
-                            continue
-                        snapshot.updates[(update.trip.trip_id, update.trip.start_date)] = update
-                    if entity.HasField("alert"):
-                        snapshot.alerts.append((entity.id, entity.alert))
-                self.cached = snapshot
-            except (httpx.HTTPError, DecodeError, ValueError):
+                self.cached = await asyncio.to_thread(parse_snapshot, response.content, self.url)
+            except (httpx.HTTPError, DecodeError, ValueError, TimeoutError) as error:
                 # Missing realtime is a normal timetable fallback, not an API/UI error.
                 self.cached = Snapshot()
-                log.warning("GTFS-Realtime nicht verfügbar; verwende Sollzeiten")
+                log.warning("GTFS-Realtime nicht verfügbar (%s); verwende Sollzeiten", type(error).__name__)
             self.checked = time.monotonic()
             return self.cached
+
+
+# GTFS.de currently encodes attribution as trip-scoped INFO alerts, not metadata.
+# Full-string matching deliberately preserves mixed attribution/disruption messages.
+_PROVENANCE = re.compile(
+    r"(?:Echtzeitdaten (?:aufbereitet|verarbeitet) von GTFS\.de, bereitgestellt (?:von|vom) "
+    r"|Real[- ]?time data (?:processed|prepared) by GTFS\.de, (?:provided|supplied) by )"
+    r"[^.!?;:\n]+(?:\.[^\s.!?;:\n]+)*\.?", re.IGNORECASE)
+
+
+def is_provenance_alert(alert, source_url):
+    if urlsplit(source_url or "").hostname != "realtime.gtfs.de":
+        return False
+    if (alert.cause != gtfs.Alert.UNKNOWN_CAUSE or alert.effect != gtfs.Alert.UNKNOWN_EFFECT
+            or alert.severity_level != gtfs.Alert.INFO or alert.active_period
+            or any(t.text.strip() for t in alert.header_text.translation)
+            or any(t.text.strip() for t in alert.url.translation)):
+        return False
+    if not alert.informed_entity or any(
+        not s.trip.trip_id or s.stop_id or s.route_id or s.agency_id or s.HasField("route_type")
+        for s in alert.informed_entity
+    ):
+        return False
+    texts = [t.text.strip() for t in alert.description_text.translation if t.text.strip()]
+    return bool(texts) and all(_PROVENANCE.fullmatch(text) for text in texts)
+
+
+def parse_snapshot(content, source_url=DEFAULT_FEED_URL):
+    feed = gtfs.FeedMessage()
+    feed.ParseFromString(content)
+    snapshot = Snapshot(timestamp=feed.header.timestamp)
+    if not feed.IsInitialized() or not snapshot.fresh():
+        raise ValueError("Feed unvollständig oder veraltet")
+    if feed.header.incrementality == gtfs.FeedHeader.DIFFERENTIAL:
+        raise ValueError("Differenzielle Feeds werden nicht unterstützt")
+    for entity in feed.entity:
+        if entity.is_deleted:
+            continue
+        if entity.HasField("trip_update"):
+            update = entity.trip_update
+            if update.timestamp and not -60 <= time.time() - update.timestamp <= MAX_AGE:
+                continue
+            snapshot.updates[(update.trip.trip_id, update.trip.start_date)] = update
+        if entity.HasField("alert") and not is_provenance_alert(entity.alert, source_url):
+            snapshot.alerts.append((entity.id, entity.alert))
+    snapshot.alert_index = index_alerts(snapshot.alerts)
+    return snapshot
 
 
 def apply_update(departure: Departure, kind: BoardKind, updates: dict):
@@ -161,12 +208,55 @@ def normalized_alert(entity_id, alert):
 
 def apply_alerts(departures: list[Departure], entries: list, station_id: str, now: datetime):
     board_alerts = []
+    board_seen = set()
+    journey_seen = [set(alert_content_key(a) for a in d.alerts) for d in departures]
     for entity_id, alert in entries:
+        normalized = normalized_alert(entity_id, alert)
+        key = alert_content_key(normalized)
         if active(alert, now) and any(selector_matches(s, None, {station_id}) for s in alert.informed_entity):
-            board_alerts.append(normalized_alert(entity_id, alert))
-        for departure in departures:
+            if key not in board_seen:
+                board_alerts.append(normalized)
+                board_seen.add(key)
+        for departure, seen in zip(departures, journey_seen):
             if active(alert, departure.realtime or departure.scheduled) and any(
                 selector_matches(s, departure, {station_id, departure.stop_id}) for s in alert.informed_entity
             ):
-                departure.alerts.append(normalized_alert(entity_id, alert))
+                if key not in seen:
+                    departure.alerts.append(normalized)
+                    seen.add(key)
     return board_alerts
+
+
+def index_alerts(entries):
+    """Index each OR selector by one restrictive field; final matching stays exact."""
+    index = {}
+    for position, (_, alert) in enumerate(entries):
+        for selector in alert.informed_entity:
+            if selector.stop_id:
+                key = ("stop", selector.stop_id)
+            elif selector.trip.trip_id:
+                key = ("trip", selector.trip.trip_id)
+            elif selector.route_id or selector.trip.route_id:
+                key = ("route", selector.route_id or selector.trip.route_id)
+            elif selector.agency_id:
+                key = ("agency", selector.agency_id)
+            elif selector.HasField("route_type"):
+                key = ("type", selector.route_type)
+            else:
+                key = ("global", "")
+            index.setdefault(key, set()).add(position)
+    return index
+
+
+def matching_alert_entries(snapshot, departures, station_id):
+    if snapshot.alert_index is None:
+        return snapshot.alerts
+    keys = {("global", ""), ("stop", station_id)}
+    for departure in departures:
+        keys.update({("stop", departure.stop_id), ("trip", departure.trip_id),
+                     ("route", departure.route_id), ("agency", departure.agency_id),
+                     ("type", departure.route_type)})
+    positions = set()
+    for key in keys:
+        positions.update(snapshot.alert_index.get(key, ()))
+    return [snapshot.alerts[position] for position in sorted(positions)]

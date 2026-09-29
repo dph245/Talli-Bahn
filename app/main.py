@@ -25,9 +25,11 @@ def create_app(provider: TransitProvider | None = None):
 
     @application.get("/api/board", response_model=Board)
     async def board(stop_id: str = Query(min_length=1, max_length=300),
-                    kind: Literal["departures", "arrivals"] = "departures"):
+                    kind: Literal["departures", "arrivals"] = "departures",
+                    realtime: bool = True):
         try:
-            return await provider.board(stop_id, kind, datetime.now(ZoneInfo("Europe/Berlin")))
+            loader = provider.board if realtime else getattr(provider, "static_board", provider.board)
+            return await loader(stop_id, kind, datetime.now(ZoneInfo("Europe/Berlin")))
         except KeyError:
             raise HTTPException(404, "Haltestelle nicht gefunden") from None
 

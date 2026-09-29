@@ -43,7 +43,7 @@ class GTFSStaticProvider:
                 (f"%{escaped}%", f"{escaped}%")).fetchall()
         return [Stop(id=r["stop_id"], name=r["stop_name"]) for r in rows]
 
-    def scheduled(self, stop_id, kind, now):
+    def scheduled(self, stop_id, kind, now, lookback_hours=2):
         with connect(self.path) as db:
             station = db.execute("SELECT * FROM stops WHERE stop_id=?", (stop_id,)).fetchone()
             if not station:
@@ -59,11 +59,19 @@ class GTFSStaticProvider:
                 day = now.astimezone(BERLIN).date() + timedelta(days=offset)
                 date = day.strftime("%Y%m%d")
                 start = service_start(day)
-                lower = int((now - timedelta(hours=2) - start).total_seconds())
+                lower = int((now - timedelta(hours=lookback_hours) - start).total_seconds())
                 upper = int((now + timedelta(hours=2) - start).total_seconds())
                 if lower > maximum or upper < 0:
                     continue
                 weekday = "monday tuesday wednesday thursday friday saturday sunday".split()[day.weekday()]
+                # Resolve only the endpoint needed, and only when no headsign exists.
+                endpoint_order = "ASC" if kind == "arrivals" else "DESC"
+                endpoint = f"""(SELECT s2.stop_name FROM stop_times endpoint
+                    JOIN stops s2 ON s2.stop_id=endpoint.stop_id
+                    WHERE endpoint.trip_id=st.trip_id
+                    ORDER BY endpoint.stop_sequence {endpoint_order} LIMIT 1)"""
+                destination_sql = endpoint if kind == "arrivals" else (
+                    f"COALESCE(NULLIF(st.stop_headsign,''), NULLIF(t.trip_headsign,''), {endpoint})")
                 sql = f"""WITH active AS (
                     SELECT service_id FROM calendar WHERE {weekday}=1 AND start_date<=? AND end_date>=?
                     UNION SELECT service_id FROM calendar_dates WHERE date=? AND exception_type=1
@@ -71,16 +79,13 @@ class GTFSStaticProvider:
                 ) SELECT st.*, t.trip_headsign, r.route_short_name, r.route_long_name, r.route_type, r.route_id, r.agency_id,
                     a.agency_name, t.direction_id,
                     s.platform_code,
-                    (SELECT s2.stop_name FROM stop_times a JOIN stops s2 ON s2.stop_id=a.stop_id
-                     WHERE a.trip_id=st.trip_id ORDER BY a.stop_sequence ASC LIMIT 1) AS origin,
-                    (SELECT s2.stop_name FROM stop_times a JOIN stops s2 ON s2.stop_id=a.stop_id
-                     WHERE a.trip_id=st.trip_id ORDER BY a.stop_sequence DESC LIMIT 1) AS terminal
+                    {destination_sql} AS destination
                 FROM stop_times st JOIN trips t ON t.trip_id=st.trip_id
                 JOIN routes r ON r.route_id=t.route_id LEFT JOIN agencies a ON a.agency_id=r.agency_id JOIN stops s ON s.stop_id=st.stop_id
                 WHERE st.stop_id IN ({placeholders}) AND st.{time_column} BETWEEN ? AND ?
                 AND st.{boarding_column}<>1 AND t.service_id IN (SELECT service_id FROM active)"""
                 for r in db.execute(sql, (date, date, date, date, *ids, lower, upper)):
-                    destination = (r["stop_headsign"] or r["trip_headsign"] or r["terminal"]) if kind == "departures" else r["origin"]
+                    destination = r["destination"]
                     journeys.append(Departure(
                         id=f"{date}:{r['trip_id']}:{r['stop_sequence']}", trip_id=r["trip_id"],
                         stop_id=r["stop_id"], sequence=r["stop_sequence"], service_date=date,
@@ -92,9 +97,12 @@ class GTFSStaticProvider:
                         platform=r["platform_code"] or None, scheduled_platform=r["platform_code"] or None, source="GTFS"))
         return Stop(id=station["stop_id"], name=station["stop_name"]), journeys
 
-    async def board(self, stop_id, kind, now):
-        station, journeys = await asyncio.to_thread(self.scheduled, stop_id, kind, now)
+    async def static_board(self, stop_id, kind, now):
+        station, journeys = await asyncio.to_thread(self.scheduled, stop_id, kind, now, 0)
         journeys = [j for j in journeys if now <= j.scheduled <= now + timedelta(hours=2)]
         journeys.sort(key=lambda j: j.scheduled)
         return Board(stop=station, kind=kind, journeys=journeys, updated_at=now,
                      source="GTFS")
+
+    async def board(self, stop_id, kind, now):
+        return await self.static_board(stop_id, kind, now)

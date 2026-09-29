@@ -194,3 +194,17 @@ PYTHONPATH=. python tests/browser_smoke.py
 Prüft Suche, gespeicherte Favoriten, Filter, Ankünfte, Designwechsel, mobile Breite und Offline-/Online-Wechsel; Screenshots werden unter `/tmp/talli-desktop.png` und `/tmp/talli-mobile.png` abgelegt.
 
 Referenzen: [GTFS Schedule](https://gtfs.org/documentation/schedule/reference/), [GTFS Realtime](https://gtfs.org/documentation/realtime/reference/), [FastAPI Static Files](https://fastapi.tiangolo.com/tutorial/static-files/).
+
+### Kompakte Tafel und Ladeverhalten
+
+Die Oberfläche lädt den Fahrplan über `/api/board?stop_id=…&realtime=false`
+und ergänzt Echtzeit anschließend über `realtime=true`. Ohne den Parameter
+wird ebenfalls Echtzeit aus dem Feedcache ergänzt. Während der erste Feedabruf
+läuft, meldet die API `realtime_status=loading`; die Oberfläche fragt automatisch
+erneut nach, auch bei ausgeschalteter periodischer Aktualisierung. Jede Fahrt belegt eine kompakte
+Tabellenzeile; ein Klick auf das Ziel öffnet die Details. „Plan“ bedeutet, dass
+keine Echtzeitprognose vorhanden ist.
+
+Query-Pläne, Messwerte am Deutschland-Datensatz und Testumfang stehen in
+[docs/performance.md](docs/performance.md). Ein erneuter GTFS-Import ist für diese
+Änderung nicht nötig.

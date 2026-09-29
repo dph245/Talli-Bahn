@@ -13,6 +13,9 @@ class SupplementedProvider:
     def search(self, query):
         return self.primary.search(query)
 
+    async def static_board(self, stop_id, kind, now):
+        return await self.primary.static_board(stop_id, kind, now)
+
     async def board(self, stop_id, kind, now):
         board = await self.primary.board_candidates(stop_id, kind, now)
         extra = await self.ris.fetch_board(board.stop, kind, now)

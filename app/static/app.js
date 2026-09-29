@@ -60,46 +60,74 @@ async function loadBoard() {
   const request = ++state.request; controller?.abort(); controller = new AbortController();
   const stop = state.stop, kind = state.kind;
   $('refresh').disabled = true; $('board-panel').setAttribute('aria-busy', 'true');
-  const timeout = setTimeout(() => controller?.abort(), 20000);
+  const activeController = controller;
+  const timeout = setTimeout(() => activeController.abort(), 20000);
+  let scheduledLoaded = false;
   try {
-    const board = await getJSON(`/api/board?stop_id=${encodeURIComponent(stop.id)}&kind=${kind}`, controller.signal);
-    if (request !== state.request) return;
-    state.board = board; state.stale = false;
-    $('error').hidden = true; $('status-dot').classList.remove('stale');
-    $('source-badge').textContent = board.demo ? 'DEMO · BEISPIELDATEN' : board.source;
-    $('updated').textContent = `Aktualisiert ${time(board.updated_at)}`;
-    $('notice').textContent = board.notice || ''; $('notice').hidden = !board.notice;
-    options($('line'), board.journeys.map(j => j.line), 'Alle Linien');
-    options($('direction'), board.journeys.map(j => j.destination), kind === 'departures' ? 'Alle Richtungen' : 'Alle Herkünfte');
-    render();
+    for (const realtime of [false, true]) {
+      const board = await getJSON(`/api/board?stop_id=${encodeURIComponent(stop.id)}&kind=${kind}&realtime=${realtime}`, activeController.signal);
+      if (request !== state.request) return;
+      state.board = board; state.stale = false;
+      $('error').hidden = true; $('status-dot').classList.remove('stale');
+      $('source-badge').textContent = board.demo ? 'DEMO · BEISPIELDATEN' : board.source;
+      $('updated').textContent = `Aktualisiert ${time(board.updated_at)}`;
+      $('notice').textContent = board.notice || ''; $('notice').hidden = !board.notice;
+      options($('line'), board.journeys.map(j => j.line), 'Alle Linien');
+      options($('direction'), board.journeys.map(j => j.destination), kind === 'departures' ? 'Alle Richtungen' : 'Alle Herkünfte');
+      render();
+      scheduledLoaded = true;
+      $('board-panel').setAttribute('aria-busy', 'false');
+      if (!realtime && !board.demo) $('updated').textContent = `Fahrplan ${time(board.updated_at)} · Echtzeit lädt …`;
+      if (realtime && board.realtime_status === 'loading') {
+        $('updated').textContent = `Fahrplan ${time(board.updated_at)} · Echtzeit lädt …`;
+        // Complete this load even when periodic automatic refresh is disabled.
+        setTimeout(() => { if (request === state.request && !document.hidden) loadBoard(); }, 2000);
+      }
+      if (realtime && board.realtime_status === 'unavailable') $('updated').textContent = `Fahrplan ${time(board.updated_at)} · Echtzeit nicht verfügbar`;
+      if (board.demo) break;
+    }
   } catch (error) {
     if (request !== state.request) return;
+    if (scheduledLoaded) {
+      $('updated').textContent = `Fahrplan ${time(state.board.updated_at)} · Echtzeit nicht verfügbar`;
+      return;
+    }
     state.stale = true; $('status-dot').classList.add('stale');
     $('error').textContent = error.status === 404 ? 'Diese Haltestelle ist in der aktuellen Datenquelle nicht vorhanden. Bitte suche eine neue Haltestelle.' : state.board ? 'Keine Verbindung zum Server. Die angezeigte Tafel ist veraltet. Bitte erneut aktualisieren.' : 'Die Tafel konnte nicht geladen werden. Prüfe deine Verbindung und aktualisiere erneut.';
     $('error').hidden = false; $('updated').textContent = state.board ? `Veraltet · Stand ${time(state.board.updated_at)}` : 'Nicht verbunden'; render();
   } finally { clearTimeout(timeout); if (request === state.request) { $('refresh').disabled = false; $('board-panel').setAttribute('aria-busy', 'false'); } }
 }
-function statusFor(j) { if (j.cancelled) return ['Fällt aus', 'cancelled']; if (!j.realtime) return ['Nach Fahrplan', 'scheduled-only']; if (j.delay_minutes > 0) return [`+${j.delay_minutes} Min`, 'delayed']; if (j.delay_minutes < 0) return [`${j.delay_minutes} Min`, '']; return ['Pünktlich', '']; }
+function statusFor(j) { if (j.cancelled) return ['Fällt aus', 'cancelled']; if (!j.realtime) return ['Plan', 'scheduled-only']; if (j.delay_minutes > 0) return [`+${j.delay_minutes} Min`, 'delayed']; if (j.delay_minutes < 0) return [`${j.delay_minutes} Min`, '']; return ['Pünktlich', '']; }
+function uniqueAlerts(alerts) {
+  const key = alert => JSON.stringify([alert.header || '', alert.description || ''].map(
+    text => text.normalize('NFC').replace(/\s+/gu, ' ').trim()));
+  return [...new Map(alerts.map(alert => [key(alert), alert])).values()];
+}
 function render() {
   const journeys = (state.board?.journeys || []).filter(j => (state.mode === 'all' || j.mode === state.mode) && (!$('line').value || j.line === $('line').value) && (!$('direction').value || j.destination === $('direction').value));
   $('alerts').replaceChildren();
-  const alerts = new Map((state.board?.alerts || []).map(alert => [alert.id, alert]));
-  for (const j of journeys) for (const alert of j.alerts || []) alerts.set(alert.id, alert);
-  for (const alert of alerts.values()) {
+  const alerts = uniqueAlerts([...(state.board?.alerts || []), ...journeys.flatMap(j => j.alerts || [])]);
+  if (alerts.length) $('alerts').append(element('div', 'alerts-count', `${alerts.length} ${alerts.length === 1 ? 'Verkehrsmeldung' : 'Verkehrsmeldungen'}`));
+  for (const alert of alerts) {
     const detail = element('details', 'service-alert');
     detail.append(element('summary', '', alert.header));
     if (alert.description) detail.append(element('p', '', alert.description));
     $('alerts').append(detail);
   }
-  $('alerts').hidden = alerts.size === 0;
+  $('alerts').hidden = alerts.length === 0;
   $('journeys').replaceChildren();
+  journeys.sort((a, b) => new Date(a.realtime || a.scheduled) - new Date(b.realtime || b.scheduled));
   for (const j of journeys) {
     const row = element('tr', j.cancelled ? 'cancelled-row' : '');
     const times = element('td', 'time-cell'); times.append(element('span', 'scheduled', time(j.scheduled)));
     if (j.realtime && !j.cancelled) times.append(element('span', `expected${j.delay_minutes > 0 ? ' delayed' : ''}`, time(j.realtime)));
     const line = element('td'); line.append(element('span', `line-badge ${j.mode}`, j.line));
-    const destination = element('td'); destination.append(element('span', 'destination', j.destination), element('span', 'mode-name', [names[j.mode] || j.mode, j.operator].filter(Boolean).join(' · ')));
-    if (j.alerts?.length) destination.append(element('span', 'service-note', `ⓘ ${j.alerts[0].header}`));
+    const destination = element('td');
+    const detailButton = element('button', 'destination', j.destination);
+    detailButton.title = 'Fahrtdetails anzeigen';
+    detailButton.addEventListener('click', () => showDetails(j));
+    destination.append(detailButton);
+    if (j.alerts?.length) detailButton.append(element('span', 'service-note', ' ⓘ'));
     const [status, style] = statusFor(j); destination.append(element('span', `journey-status mobile-status ${style}`, status));
     const platform = element('td'); platform.append(element('span', 'platform', j.platform || '–'));
     if (j.scheduled_platform && j.platform && j.scheduled_platform !== j.platform) {
@@ -111,6 +139,20 @@ function render() {
   $('empty').hidden = !state.board || journeys.length > 0;
   $('count').textContent = state.board ? `${journeys.length} ${state.kind === 'departures' ? 'Abfahrten' : 'Ankünfte'} · nächste 2 Stunden${state.stale ? ' · veraltet' : ''}` : state.stop ? 'Warte auf Fahrplandaten …' : 'Bitte eine Haltestelle suchen';
 }
+function showDetails(j) {
+  const dialog = $('journey-detail');
+  $('detail-title').textContent = `${j.line} · ${j.destination}`;
+  $('detail-body').replaceChildren();
+  for (const text of [
+    [names[j.mode] || j.mode, j.operator].filter(Boolean).join(' · '),
+    `Soll ${time(j.scheduled)} · ${statusFor(j)[0]}${j.realtime ? ` · Echtzeit ${time(j.realtime)}` : ''}`,
+    `Gleis / Steig ${j.platform || '–'}${j.scheduled_platform && j.platform !== j.scheduled_platform ? ` (statt ${j.scheduled_platform})` : ''}`,
+    `Quelle: ${j.source}`,
+    ...uniqueAlerts(j.alerts || []).map(a => `${a.header}\n${a.description || ''}`)
+  ]) $('detail-body').append(element('p', '', text));
+  dialog.showModal();
+}
+$('detail-close').addEventListener('click', () => $('journey-detail').close());
 function updateModes() { document.querySelectorAll('[data-mode]').forEach(button => { const active = button.dataset.mode === state.mode; button.classList.toggle('active', active); button.setAttribute('aria-pressed', String(active)); }); }
 document.querySelectorAll('[data-mode]').forEach(button => button.addEventListener('click', () => { state.mode = button.dataset.mode; updateModes(); render(); }));
 for (const id of ['line','direction']) $(id).addEventListener('change', render);

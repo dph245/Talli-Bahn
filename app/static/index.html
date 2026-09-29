@@ -24,7 +24,7 @@
     <section id="alerts" class="service-alerts" aria-label="Verkehrsmeldungen" hidden></section>
     <div id="error" class="error" role="alert" hidden></div>
     <div id="board-panel" role="tabpanel" aria-labelledby="departures">
-      <div class="table-scroll"><table><caption class="sr-only">Verbindungen für die nächsten zwei Stunden. Alle Zeiten in Europe/Berlin.</caption><thead><tr><th scope="col">SOLL / ECHTZEIT</th><th scope="col">LINIE</th><th scope="col" id="direction-title">RICHTUNG</th><th scope="col" class="platform-col">GLEIS / STEIG</th><th scope="col">STATUS</th></tr></thead><tbody id="journeys"></tbody></table></div>
+      <div class="table-scroll"><table><caption class="sr-only">Verbindungen für die nächsten zwei Stunden. Alle Zeiten in Europe/Berlin.</caption><thead><tr><th scope="col">ZEIT</th><th scope="col">LINIE / ZUG</th><th scope="col" id="direction-title">RICHTUNG</th><th scope="col" class="platform-col">GLEIS / STEIG</th><th scope="col">ABWEICHUNG / STATUS</th></tr></thead><tbody id="journeys"></tbody></table></div>
       <div id="empty" class="empty" hidden><span aria-hidden="true">↗</span><h3>Hier ist gerade alles ruhig.</h3><p>Keine Verbindungen in den nächsten zwei Stunden.</p><button id="reset-filters" class="text-button">Filter zurücksetzen</button></div>
     </div>
     <div class="board-footer"><span id="count">Verbindungen werden geladen</span><span>Alle Zeiten in Ortszeit <span class="desktop-only">· Europe/Berlin</span></span></div>
@@ -32,6 +32,7 @@
   <div class="legend"><span><i class="legend-dot green"></i> Echtzeit vorhanden</span><span><i class="legend-dot yellow"></i> Verspätung</span><span><i class="legend-dot gray"></i> Nur Fahrplan</span><span class="legend-note">Dein nächster Halt. Ganz ohne Umwege.</span></div>
 </main>
 <footer class="page-footer"><span><b>talli.</b> Weniger suchen. Besser ankommen.</span><span>Keine Konten. Favoriten bleiben auf deinem Gerät.</span></footer>
+<dialog id="journey-detail" aria-labelledby="detail-title"><button id="detail-close" class="icon-button" aria-label="Details schließen">×</button><h2 id="detail-title"></h2><div id="detail-body"></div></dialog>
 <noscript>Bitte JavaScript aktivieren, um Haltestellen und Verbindungen anzuzeigen.</noscript>
 </body>
 </html>
