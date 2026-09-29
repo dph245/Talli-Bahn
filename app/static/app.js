@@ -105,14 +105,26 @@ function uniqueAlerts(alerts) {
 }
 function render() {
   const journeys = (state.board?.journeys || []).filter(j => (state.mode === 'all' || j.mode === state.mode) && (!$('line').value || j.line === $('line').value) && (!$('direction').value || j.destination === $('direction').value));
+  const alertScope = JSON.stringify([state.stop?.id, state.kind, state.mode, $('line').value, $('direction').value]);
+  const keepAlertsOpen = $('alerts').dataset.scope === alertScope && Boolean($('alerts').querySelector('details')?.open);
+  $('alerts').dataset.scope = alertScope;
   $('alerts').replaceChildren();
+  // Board alerts have already been matched to the station by the backend.
+  // Journey alerts are collected only from the rows surviving the UI filters.
   const alerts = uniqueAlerts([...(state.board?.alerts || []), ...journeys.flatMap(j => j.alerts || [])]);
-  if (alerts.length) $('alerts').append(element('div', 'alerts-count', `${alerts.length} ${alerts.length === 1 ? 'Verkehrsmeldung' : 'Verkehrsmeldungen'}`));
-  for (const alert of alerts) {
-    const detail = element('details', 'service-alert');
-    detail.append(element('summary', '', alert.header));
-    if (alert.description) detail.append(element('p', '', alert.description));
-    $('alerts').append(detail);
+  if (alerts.length) {
+    const disclosure = element('details', 'alerts-disclosure');
+    disclosure.open = keepAlertsOpen;
+    disclosure.append(element('summary', 'alerts-count', `⚠ ${alerts.length} relevante ${alerts.length === 1 ? 'Verkehrsmeldung' : 'Verkehrsmeldungen'}`));
+    const list = element('ul', 'alerts-list');
+    for (const alert of alerts) {
+      const item = element('li');
+      item.append(element('strong', '', alert.header));
+      if (alert.description) item.append(element('p', '', alert.description));
+      list.append(item);
+    }
+    disclosure.append(list);
+    $('alerts').append(disclosure);
   }
   $('alerts').hidden = alerts.length === 0;
   $('journeys').replaceChildren();
@@ -127,7 +139,12 @@ function render() {
     detailButton.title = 'Fahrtdetails anzeigen';
     detailButton.addEventListener('click', () => showDetails(j));
     destination.append(detailButton);
-    if (j.alerts?.length) detailButton.append(element('span', 'service-note', ' ⓘ'));
+    if (j.alerts?.length) {
+      const warning = element('span', 'service-note', '⚠ ');
+      warning.setAttribute('aria-label', 'Verkehrsmeldung vorhanden. ');
+      detailButton.prepend(warning);
+      detailButton.title = 'Fahrtdetails und Verkehrsmeldungen anzeigen';
+    }
     const [status, style] = statusFor(j); destination.append(element('span', `journey-status mobile-status ${style}`, status));
     const platform = element('td'); platform.append(element('span', 'platform', j.platform || '–'));
     if (j.scheduled_platform && j.platform && j.scheduled_platform !== j.platform) {

@@ -27,7 +27,7 @@ h2{font-size:22px;margin:0;letter-spacing:0}.favorite-toggle{padding:0;font-size
 .board-status{flex-direction:row;align-items:center;gap:12px}.badge{border-radius:0}
 .board-toolbar{min-height:36px;padding:0 12px}.filters{padding:6px 12px;gap:12px}
 .mode{border-radius:2px;padding:3px 9px}.select-filters select{padding-top:3px;padding-bottom:3px;border-radius:2px}
-.notice,.service-alerts{margin:0 12px 6px}.service-alerts{max-height:90px;overflow:auto}
+.notice,.service-alerts{margin:0 12px 6px}.service-alerts{max-height:none;overflow:visible}
 .service-alert{margin-top:3px;padding:4px 8px;border-radius:0}.error{padding:6px 12px}
 th{height:28px;font-size:10px;font-weight:600;letter-spacing:.5px}
 th:first-child,td:first-child{padding-left:12px;width:145px}th:nth-child(2){width:150px}
@@ -60,4 +60,8 @@ dialog::backdrop{background:#0009}#detail-close{float:right;margin-left:12px}#de
  .board-footer{padding:5px 6px;font-size:9px}.legend{padding:6px 0;font-size:9px;gap:10px}.page-footer{margin:8px;padding:8px 0;font-size:9px}
 }
 
-.alerts-count{font-weight:600;padding:3px 0;position:sticky;top:0;background:var(--panel)}
+.alerts-count{font-weight:600;cursor:pointer;height:28px;line-height:28px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;background:var(--panel)}
+.alerts-count:focus-visible{outline:2px solid var(--accent);outline-offset:-2px}
+.alerts-list{list-style:none;margin:0;padding:0 8px;max-height:min(240px,30vh);overflow:auto;overscroll-behavior:contain}
+.alerts-list li{padding:8px 0;border-top:1px solid var(--border);overflow-wrap:anywhere}
+.alerts-list p{margin:3px 0 0;color:var(--muted);white-space:pre-line}

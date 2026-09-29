@@ -49,8 +49,15 @@ Im Backend wird **erst nach Selektor- und Gültigkeitsprüfung** je Station bzw.
 Fahrt dedupliziert. So verliert eine Fahrt keine Meldung, nur weil derselbe Inhalt
 auch einer anderen Fahrt zugeordnet ist. Die Oberfläche dedupliziert zusätzlich
 über Stations- und sichtbare Fahrtmeldungen hinweg, ebenso in den Fahrtdetails.
-Sie zeigt z. B. „3 Verkehrsmeldungen“, bei genau einer „1 Verkehrsmeldung“ und
-blendet den Bereich bei null Meldungen aus.
+Standardmäßig erscheint ausschließlich eine geschlossene, einzeilige Zusammenfassung
+„⚠ 3 relevante Verkehrsmeldungen“ (28 Pixel hoch), keine einzelnen Meldungskarten.
+Bei null Meldungen bleibt der Bereich leer und unsichtbar. Erst Aufklappen zeigt
+die deduplizierte Textliste; ihre Höhe ist auch dann begrenzt. Fahrtmeldungen
+werden zusätzlich durch ein kompaktes ⚠ vor dem Ziel markiert, die Details sind
+über den Zielbutton erreichbar. Verkehrsmodus-, Linien- und Richtungsfilter
+bestimmen die berücksichtigten Fahrten. Ein aufgeklappter Bereich bleibt bei
+Datenaktualisierungen geöffnet, wird beim Wechsel des Auswahlkontexts aber wieder
+geschlossen.
 
 Tests prüfen den Schutz regulärer INFO-Meldungen, Quellenbindung, englische
 Provenienz, gemischte Störungs-/Provenienztexte, Fahrtzuordnung, unterschiedliche

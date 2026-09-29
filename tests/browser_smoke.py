@@ -81,7 +81,9 @@ def main():
             page.locator('#refresh').click()
             expect(page.locator('#alerts')).to_contain_text('<img src=x onerror=alert(1)>')
             expect(page.locator('#alerts img')).to_have_count(0)
-            expect(page.locator('#alerts .alerts-count')).to_have_text('1 Verkehrsmeldung')
+            expect(page.locator('#alerts .alerts-count')).to_have_text('⚠ 1 relevante Verkehrsmeldung')
+            expect(page.locator('#alerts p')).not_to_be_visible()
+            assert page.locator('#alerts').bounding_box()['height'] <= 30
             page.locator('#alerts summary').click()
             expect(page.locator('#alerts p')).to_be_visible()
             expect(page.locator('#journeys tr').first).to_contain_text('Plan')
@@ -98,12 +100,41 @@ def main():
             board['journeys'][0]['alerts'] = [dict(original_alert, id='trip-copy'),
                                              dict(original_alert, id='trip-copy-2')]
             page.locator('#refresh').click()
-            expect(page.locator('#alerts .alerts-count')).to_have_text('3 Verkehrsmeldungen')
-            expect(page.locator('#alerts details')).to_have_count(3)
+            expect(page.locator('#alerts .alerts-count')).to_have_text('⚠ 3 relevante Verkehrsmeldungen')
+            expect(page.locator('#alerts .alerts-list li')).to_have_count(3)
             page.locator('#journeys tr').first.locator('.destination').click()
             expect(page.locator('#detail-body')).to_contain_text('Bauarbeiten am Bahnhof')
             assert page.locator('#detail-body').inner_text().count('Bauarbeiten am Bahnhof') == 1
             page.locator('#detail-close').click()
+            # Only the visible journey carries this alert; other modes must hide it.
+            board['alerts'] = []
+            page.locator('#refresh').click()
+            expect(page.locator('#alerts .alerts-count')).to_have_text('⚠ 1 relevante Verkehrsmeldung')
+            expect(page.locator('#journeys .service-note')).to_have_count(1)
+            expect(page.locator('#journeys .service-note')).to_have_text('⚠ ')
+            page.locator('[data-mode="bus"]').click()
+            expect(page.locator('#alerts')).to_be_hidden()
+            expect(page.locator('#alerts')).to_be_empty()
+            expect(page.locator('#journeys .service-note')).to_have_count(0)
+            page.locator('[data-mode="all"]').click()
+            expect(page.locator('#alerts .alerts-list')).not_to_be_visible()
+            page.locator('#line').select_option(board['journeys'][1]['line'])
+            expect(page.locator('#alerts')).to_be_hidden()
+            page.locator('#line').select_option('')
+            expect(page.locator('#alerts .alerts-count')).to_be_visible()
+            page.locator('#alerts summary').focus()
+            page.keyboard.press('Enter')
+            expect(page.locator('#alerts .alerts-list')).to_be_visible()
+            page.keyboard.press('Enter')
+            expect(page.locator('#alerts .alerts-list')).not_to_be_visible()
+            compact_height = page.locator('#alerts').bounding_box()['height']
+            board['alerts'] = [dict(original_alert, id=f'many-{i}', header=f'Meldung {i}') for i in range(30)]
+            page.locator('#refresh').click()
+            expect(page.locator('#alerts .alerts-count')).to_have_text('⚠ 31 relevante Verkehrsmeldungen')
+            assert page.locator('#alerts').bounding_box()['height'] == compact_height
+            expect(page.locator('#alerts .alerts-list')).not_to_be_visible()
+            assert page.evaluate('document.documentElement.scrollWidth <= window.innerWidth')
+            page.screenshot(path='/tmp/talli-mobile-alerts.png', full_page=False)
             board['journeys'][0]['alerts'] = []
             # Hold realtime open: the static table must already be visible and usable.
             page.unroute('**/api/board?*')
