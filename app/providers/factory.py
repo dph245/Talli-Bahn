@@ -9,6 +9,13 @@ from .gtfs import GTFSProvider
 from .gtfs_realtime import RealtimeFeed, DEFAULT_FEED_URL
 from .db_ris import DBRISProvider
 from .supplemented import SupplementedProvider
+from .transport_rest import TransportRestProvider
+
+
+def with_platforms(provider):
+    if os.getenv("TRANSPORT_REST_ENABLED", "false").lower() == "true":
+        return TransportRestProvider(provider)
+    return provider
 
 
 def create_provider() -> TransitProvider:
@@ -21,7 +28,7 @@ def create_provider() -> TransitProvider:
     if selected != "demo" and path.exists():
         primary = GTFSProvider(path, RealtimeFeed(os.getenv("GTFS_RT_URL", DEFAULT_FEED_URL), os.getenv("GTFS_RT_TOKEN")))
         if os.getenv("DB_RIS_ENABLED", "false").lower() != "true":
-            return primary
+            return with_platforms(primary)
         client_id, api_key = os.getenv("DB_CLIENT_ID"), os.getenv("DB_API_KEY")
         if not client_id or not api_key:
             raise RuntimeError("DB_RIS_ENABLED benötigt DB_CLIENT_ID und DB_API_KEY")
@@ -35,5 +42,5 @@ def create_provider() -> TransitProvider:
         if any(not isinstance(value, str) or not value for value in trips.values()):
             raise ValueError("RIS-Mapping: Fahrt-IDs müssen nichtleere Strings sein")
         ris = DBRISProvider(primary, stations, client_id, api_key)
-        return SupplementedProvider(primary, ris, trips)
+        return with_platforms(SupplementedProvider(primary, ris, trips))
     return DemoProvider()

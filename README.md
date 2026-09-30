@@ -208,3 +208,26 @@ keine Echtzeitprognose vorhanden ist.
 Query-Pläne, Messwerte am Deutschland-Datensatz und Testumfang stehen in
 [docs/performance.md](docs/performance.md). Ein erneuter GTFS-Import ist für diese
 Änderung nicht nötig.
+
+### Ergänzende Gleise über transport.rest
+
+`TRANSPORT_REST_ENABLED=true` aktiviert die öffentliche
+[transport.rest-API](https://v6.db.transport.rest/api.html) ohne API-Schlüssel.
+Docker Compose aktiviert die Ergänzung standardmäßig; bei direktem Uvicorn-Start
+muss die Variable gesetzt werden. Mit `false` lässt sie sich abschalten.
+
+GTFS bleibt die Fahrplanquelle. Die Ergänzung gilt für Bahn-Abfahrten und
+-Ankünfte, wenn der Stationsname eindeutig aufgelöst werden kann und Linie,
+exakter Sollzeitpunkt sowie Ziel/Herkunft in beiden Quellen eindeutig passen.
+Lediglich Leerzeichen in Liniennamen und doppelte Ortspräfixe wie
+„Hamburg, Hamburg Hbf“ werden normalisiert. Abweichende Namen, fehlende Herkunft,
+mehrdeutige Fahrten und andere Haltestellen bleiben unberücksichtigt.
+Aktuelles und geplantes Gleis werden übernommen; RIS-Angaben haben Vorrang.
+Zeiten, Ausfälle und die Liste der Fahrten bleiben unverändert.
+
+Abrufe und Fehler werden je Bahnhof und Tafel 60 Sekunden zwischengespeichert;
+der Abruf hat ein Gesamtzeitlimit von acht Sekunden. Die erste statische Tafel
+wartet nicht darauf. Bei Fehlern oder fehlenden Gleisen bleiben die bisherigen
+Daten sichtbar. Die Quelle garantiert somit keine vollständige Gleisabdeckung.
+Beim Integrationstest lieferte der öffentliche Live-Endpunkt HTTP 503; die
+Zuordnung und Fehlerbehandlung sind mit synthetischen API-Antworten getestet.
