@@ -513,3 +513,71 @@ def test_individual_trip_timestamp_expires_in_fresh_feed(monkeypatch, age, accep
     cached = journey()
     apply_update(cached, 'departures', {('t', '20260929'): u})
     assert (cached.realtime is not None) == accepted
+
+
+@pytest.mark.parametrize('validators,conditional', [
+    ({'ETag': '"snapshot-1"', 'Last-Modified': 'Wed, 30 Sep 2026 18:00:00 GMT'},
+     {'If-None-Match': '"snapshot-1"'}),
+    ({'Last-Modified': 'Wed, 30 Sep 2026 18:00:00 GMT'},
+     {'If-Modified-Since': 'Wed, 30 Sep 2026 18:00:00 GMT'}),
+])
+def test_conditional_refresh_preserves_snapshot_and_original_expiry(monkeypatch, validators, conditional):
+    clock = [int(time.time())]
+    monkeypatch.setattr(time, 'time', lambda: clock[0])
+    calls = []
+    async def get(self, url, headers):
+        calls.append(headers)
+        return httpx.Response(200 if len(calls) == 1 else 304, headers=validators,
+                              content=feed().SerializeToString() if len(calls) == 1 else b'',
+                              request=httpx.Request('GET', url))
+    monkeypatch.setattr(httpx.AsyncClient, 'get', get)
+    rt = RealtimeFeed('https://example.org/feed', token='test-token')
+    async def run():
+        await rt._refresh()
+        original = rt.cached
+        stamp = original.timestamp
+        for age in (60, 300, 301):
+            clock[0] = stamp + age
+            rt.checked -= 61
+            await rt._refresh()
+            assert rt.cached is original and rt.cached.timestamp == stamp
+            assert (await rt.current_snapshot())[1] == ('available' if age <= 300 else 'unavailable')
+            assert rt.failures == 0 and rt.retry_delay == 60
+    asyncio.run(run())
+    assert calls[0] == {'Authorization': 'Bearer test-token'}
+    assert all(headers == {'Authorization': 'Bearer test-token', **conditional} for headers in calls[1:])
+
+
+def test_failed_payload_does_not_replace_validators_and_valid_200_clears_them(monkeypatch):
+    calls = []
+    async def get(self, url, headers):
+        calls.append(headers)
+        index = len(calls)
+        return httpx.Response(200, headers={'ETag': f'"v{index}"'} if index < 3 else {},
+                              content=b'invalid' if index == 2 else feed().SerializeToString(),
+                              request=httpx.Request('GET', url))
+    monkeypatch.setattr(httpx.AsyncClient, 'get', get)
+    rt = RealtimeFeed('https://example.org/feed')
+    async def run():
+        await rt._refresh()
+        original = rt.cached
+        rt.checked -= 61
+        await rt._refresh()
+        assert rt.cached is original and rt.etag == '"v1"' and rt.retry_delay == 120
+        rt.checked -= 121
+        await rt._refresh()
+        assert rt.cached is not original and rt.etag is None and rt.last_modified is None
+        rt.checked -= 61
+        await rt._refresh()
+    asyncio.run(run())
+    assert calls == [{}, {'If-None-Match': '"v1"'}, {'If-None-Match': '"v1"'}, {}]
+
+
+def test_unsolicited_304_is_a_failed_refresh(monkeypatch):
+    async def get(self, url, headers):
+        return httpx.Response(304, request=httpx.Request('GET', url))
+    monkeypatch.setattr(httpx.AsyncClient, 'get', get)
+    rt = RealtimeFeed('https://example.org/feed')
+    asyncio.run(rt._refresh())
+    assert rt.failures == 1 and rt.retry_delay == 120
+    assert asyncio.run(rt.current_snapshot())[1] == 'unavailable'

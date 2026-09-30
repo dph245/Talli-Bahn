@@ -1,5 +1,9 @@
 # Abfahrtsabfragen am Deutschland-Datensatz
 
+Historisches Messprotokoll. Für den aktuellen 60-Sekunden-Poll, die
+300-Sekunden-Frischegrenze, Conditional GETs und Abfahrtskarenzen siehe die
+[Echtzeitprüfung vom 30.09.2026](realtime-check-2026-09-30.md).
+
 Messung am 29.09.2026 mit `data/gtfs.sqlite`: laut Importstatistik 38.219.693
 `stop_times`, 1.825.816 `trips`, 676.885 `stops`. Die Datenbank wird weiterhin
 nur lesend geöffnet; kein erneuter Import und keine Indexmigration erforderlich.

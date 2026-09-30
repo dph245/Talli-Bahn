@@ -25,6 +25,7 @@ def main():
             errors = []
             page.on('pageerror', lambda error: errors.append(str(error)))
             page.goto('http://127.0.0.1:8765')
+            expect(page.locator('h1')).to_have_text('Abfahrten. Ohne Drama.')
             expect(page.locator('#journeys tr')).to_have_count(12)
             expect(page.locator('#source-badge')).to_contain_text('DEMO')
             page.locator('#favorite').click()
@@ -176,13 +177,41 @@ def main():
             expect(page.locator('#updated')).to_contain_text('Echtzeit lädt')
             # Loading must be polled even with the Auto switch disabled.
             page.wait_for_timeout(2500)
-            enriched = dict(board, source='GTFS + GTFS-Realtime', journeys=[
+            enriched = dict(board, source='GTFS + GTFS-Realtime', realtime_status='available', journeys=[
                 dict(j, realtime=j['scheduled'], delay_minutes=0) for j in board['journeys']])
             assert pending
             for route in pending:
                 route.fulfill(json=enriched)
             expect(page.locator('#source-badge')).to_have_text('GTFS + GTFS-Realtime')
             expect(page.locator('#journeys tr').first).to_contain_text('Pünktlich')
+            pending.clear()
+            # The static response omits a delayed journey: no disappearing row while RT loads.
+            from datetime import datetime, timedelta, timezone
+            now = datetime.now(timezone.utc)
+            delayed = dict(enriched['journeys'][0], id='delayed', line='DELAYED',
+                           scheduled=(now - timedelta(minutes=5)).isoformat(),
+                           realtime=(now + timedelta(minutes=5)).isoformat(), delay_minutes=10)
+            enriched['journeys'] = [delayed, enriched['journeys'][1]]
+            page.locator('#refresh').click()
+            page.wait_for_timeout(100)
+            assert pending
+            for route in pending:
+                route.fulfill(json=enriched)
+            pending.clear()
+            expect(page.locator('#journeys')).to_contain_text('DELAYED')
+            board['journeys'] = [enriched['journeys'][1] | {'realtime': None, 'delay_minutes': None}]
+            page.locator('#refresh').click()
+            page.wait_for_timeout(100)
+            assert pending
+            expect(page.locator('#journeys')).to_contain_text('DELAYED')
+            expect(page.locator('#journeys tr')).to_have_count(2)
+            for route in pending:
+                route.abort()
+            pending.clear()
+            expect(page.locator('#updated')).to_contain_text('Echtzeit nicht verfügbar')
+            expect(page.locator('#journeys tr')).to_have_count(1)
+            expect(page.locator('#journeys')).not_to_contain_text('DELAYED')
+            expect(page.locator('#journeys')).to_contain_text('Plan')
             print(f'Density: {visible} rows at 1920x1080; {larger} at 2560x1440. Static board survives realtime failure.')
             assert not errors, errors
             browser.close()

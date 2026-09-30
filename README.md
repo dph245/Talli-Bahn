@@ -197,6 +197,14 @@ Referenzen: [GTFS Schedule](https://gtfs.org/documentation/schedule/reference/),
 
 ### Kompakte Tafel und Ladeverhalten
 
+Die [konservative Echtzeitprüfung vom 30.09.2026](docs/realtime-check-2026-09-30.md)
+dokumentiert gemessene Feedgrößen, HTTP-Validatoren und regionale Alternativen.
+Der zentrale Worker nutzt Conditional GETs; auch ein 304 verlängert die
+Fünf-Minuten-Frischegrenze nicht. Prognosen bestimmen Sichtbarkeit und Sortierung
+mit 60 Sekunden Karenz, Ausfälle bleiben fünf Minuten nach Sollzeit sichtbar.
+Beim Refresh derselben Echtzeittafel bleibt diese bis zur neuen Antwort stehen;
+bei einem Fehler erscheint der bereits geladene Sollfahrplan.
+
 Die Oberfläche lädt den Fahrplan über `/api/board?stop_id=…&realtime=false`
 und ergänzt Echtzeit anschließend über `realtime=true`. Ohne den Parameter
 wird ebenfalls Echtzeit aus dem Feedcache ergänzt. Während der erste Feedabruf

@@ -43,6 +43,8 @@ class RealtimeFeed:
         self.lock = asyncio.Lock()
         self.checked = float('-inf')
         self.cached = Snapshot()
+        self.etag = None
+        self.last_modified = None
         self.refresh_task = None
         self.refreshing = False
 
@@ -80,10 +82,22 @@ class RealtimeFeed:
             self.refreshing = True
             try:
                 headers = {"Authorization": f"Bearer {self.token}"} if self.token else {}
+                if self.etag:
+                    headers["If-None-Match"] = self.etag
+                elif self.last_modified:
+                    headers["If-Modified-Since"] = self.last_modified
                 async with asyncio.timeout(DOWNLOAD_TIMEOUT), httpx.AsyncClient(timeout=8, follow_redirects=True) as client:
                     response = await client.get(self.url, headers=headers)
-                    response.raise_for_status()
-                self.cached = await asyncio.to_thread(parse_snapshot, response.content, self.url)
+                    if response.status_code != 304:
+                        response.raise_for_status()
+                if response.status_code == 304:
+                    if not (self.etag or self.last_modified):
+                        raise ValueError("304 ohne vorhandenen Snapshot-Validator")
+                    # A validator confirms identity, never freshness of predictions.
+                else:
+                    self.cached = await asyncio.to_thread(parse_snapshot, response.content, self.url)
+                    self.etag = response.headers.get("ETag")
+                    self.last_modified = response.headers.get("Last-Modified")
                 self.failures = 0
                 self.retry_delay = self.interval
             except (httpx.HTTPError, DecodeError, ValueError, TimeoutError) as error:

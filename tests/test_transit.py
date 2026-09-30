@@ -323,3 +323,50 @@ def test_demo_partial_search():
     demo = DemoProvider()
     assert [s.id for s in demo.search('hbf muen')] == ['demo-muenchen']
     assert [s.id for s in demo.search('platz ber')] == ['demo-alex']
+
+
+@pytest.mark.parametrize('kind,event,minute', [('departures', 'departure', 7), ('arrivals', 'arrival', 5)])
+def test_delayed_journey_survives_scheduled_time_and_sorts_by_prediction(provider, kind, event, minute):
+    from app.providers.gtfs_realtime import Snapshot
+    u = update()
+    getattr(u.stop_time_update.add(stop_sequence=2), event).delay = 20 * 60
+    provider.realtime.cached = Snapshot(timestamp=int(time.time()), updates={('t', '20260929'): u})
+    board = asyncio.run(provider.board('s', kind, NOW.replace(minute=15)))
+    assert [d.trip_id for d in board.journeys] == ['added', 't']
+    assert board.journeys[-1].realtime.minute == minute + 20
+    for seconds, visible in [(0, True), (60, True), (61, False)]:
+        from datetime import timedelta
+        now = NOW.replace(minute=minute + 20) + timedelta(seconds=seconds)
+        board = asyncio.run(provider.board('s', kind, now))
+        assert ('t' in [d.trip_id for d in board.journeys]) == visible
+    # Expiry removes predictions rather than keeping the delayed row indefinitely.
+    provider.realtime.cached.timestamp -= 301
+    board = asyncio.run(provider.board('s', kind, NOW.replace(minute=15)))
+    assert [d.trip_id for d in board.journeys] == ['added']
+    assert board.realtime_status == 'unavailable'
+    assert all(d.realtime is None for d in board.journeys)
+
+
+@pytest.mark.parametrize('seconds,visible', [(0, True), (60, True), (61, False)])
+def test_early_prediction_uses_prediction_grace_not_scheduled_time(seconds, visible):
+    from datetime import timedelta
+    from app.providers.time_window import visible_departures
+    d = journey()
+    d.scheduled = NOW + timedelta(minutes=10)
+    d.realtime = NOW
+    assert bool(visible_departures([d], NOW + timedelta(seconds=seconds))) == visible
+
+
+def test_cancellations_use_scheduled_slot_and_separate_five_minute_grace():
+    from datetime import timedelta
+    from app.providers.time_window import visible_departures
+    cancelled, predicted = journey(), journey()
+    cancelled.cancelled = True
+    cancelled.realtime = NOW + timedelta(hours=1)  # Obsolete prediction must not retain cancellation.
+    predicted.scheduled = NOW - timedelta(minutes=10)
+    predicted.realtime = NOW + timedelta(minutes=1)
+    assert visible_departures([predicted, cancelled], NOW) == [cancelled, predicted]
+    assert visible_departures([cancelled], NOW + timedelta(minutes=5)) == [cancelled]
+    assert visible_departures([cancelled], NOW + timedelta(minutes=5, seconds=1)) == []
+    plan = journey()
+    assert visible_departures([plan], NOW + timedelta(seconds=1)) == []

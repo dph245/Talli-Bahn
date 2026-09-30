@@ -55,6 +55,17 @@ $('search-results').addEventListener('keydown', event => { const buttons = [...$
 document.addEventListener('keydown', event => { if (event.key === '/' && !['INPUT', 'SELECT', 'TEXTAREA'].includes(document.activeElement.tagName)) { event.preventDefault(); $('search').focus(); } if (event.key === 'Escape') { ++searchVersion; searchController?.abort(); $('search-results').hidden = true; $('search').blur(); } });
 document.addEventListener('click', event => { if (!event.target.closest('.search-box')) { ++searchVersion; searchController?.abort(); $('search-results').hidden = true; } });
 function options(select, values, label) { const previous = select.value; select.replaceChildren(new Option(label, '')); for (const value of [...new Set(values)].sort((a,b) => a.localeCompare(b, 'de', {numeric:true}))) select.add(new Option(value, value)); select.value = values.includes(previous) ? previous : ''; }
+function showBoard(board, kind) {
+  state.board = board; state.stale = false;
+  $('error').hidden = true; $('status-dot').classList.remove('stale');
+  $('source-badge').textContent = board.demo ? 'DEMO · BEISPIELDATEN' : board.source;
+  $('updated').textContent = `Aktualisiert ${time(board.updated_at)}`;
+  $('notice').textContent = board.notice || ''; $('notice').hidden = !board.notice;
+  options($('line'), board.journeys.map(j => j.line), 'Alle Linien');
+  options($('direction'), board.journeys.map(j => j.destination), kind === 'departures' ? 'Alle Richtungen' : 'Alle Herkünfte');
+  render();
+  $('board-panel').setAttribute('aria-busy', 'false');
+}
 async function loadBoard() {
   if (!state.stop) return;
   const request = ++state.request; controller?.abort(); controller = new AbortController();
@@ -62,21 +73,19 @@ async function loadBoard() {
   $('refresh').disabled = true; $('board-panel').setAttribute('aria-busy', 'true');
   const activeController = controller;
   const timeout = setTimeout(() => activeController.abort(), 20000);
-  let scheduledLoaded = false;
+  let fallbackBoard = null;
+  const keepRealtime = !state.stale && state.board?.stop.id === stop.id && state.board?.kind === kind
+    && state.board?.realtime_status === 'available';
   try {
     for (const realtime of [false, true]) {
       const board = await getJSON(`/api/board?stop_id=${encodeURIComponent(stop.id)}&kind=${kind}&realtime=${realtime}`, activeController.signal);
       if (request !== state.request) return;
-      state.board = board; state.stale = false;
-      $('error').hidden = true; $('status-dot').classList.remove('stale');
-      $('source-badge').textContent = board.demo ? 'DEMO · BEISPIELDATEN' : board.source;
-      $('updated').textContent = `Aktualisiert ${time(board.updated_at)}`;
-      $('notice').textContent = board.notice || ''; $('notice').hidden = !board.notice;
-      options($('line'), board.journeys.map(j => j.line), 'Alle Linien');
-      options($('direction'), board.journeys.map(j => j.destination), kind === 'departures' ? 'Alle Richtungen' : 'Alle Herkünfte');
-      render();
-      scheduledLoaded = true;
-      $('board-panel').setAttribute('aria-busy', 'false');
+      if (!realtime) {
+        fallbackBoard = board;
+        // Do not briefly remove delayed journeys on every periodic refresh.
+        if (keepRealtime && !board.demo) continue;
+      }
+      showBoard(board, kind);
       if (!realtime && !board.demo) $('updated').textContent = `Fahrplan ${time(board.updated_at)} · Echtzeit lädt …`;
       if (realtime && board.realtime_status === 'loading') {
         $('updated').textContent = `Fahrplan ${time(board.updated_at)} · Echtzeit lädt …`;
@@ -88,7 +97,8 @@ async function loadBoard() {
     }
   } catch (error) {
     if (request !== state.request) return;
-    if (scheduledLoaded) {
+    if (fallbackBoard) {
+      showBoard(fallbackBoard, kind);
       $('updated').textContent = `Fahrplan ${time(state.board.updated_at)} · Echtzeit nicht verfügbar`;
       return;
     }
@@ -128,7 +138,8 @@ function render() {
   }
   $('alerts').hidden = alerts.length === 0;
   $('journeys').replaceChildren();
-  journeys.sort((a, b) => new Date(a.realtime || a.scheduled) - new Date(b.realtime || b.scheduled));
+  const displayTime = j => new Date(j.cancelled ? j.scheduled : j.realtime || j.scheduled);
+  journeys.sort((a, b) => displayTime(a) - displayTime(b));
   for (const j of journeys) {
     const row = element('tr', j.cancelled ? 'cancelled-row' : '');
     const times = element('td', 'time-cell'); times.append(element('span', 'scheduled', time(j.scheduled)));
