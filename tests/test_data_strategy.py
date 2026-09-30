@@ -57,7 +57,7 @@ def test_realtime_unavailable_is_normal_fallback(provider, monkeypatch, failure)
     assert all(d.realtime is None for d in board.journeys)
 
 
-def test_realtime_thirty_second_cache_and_refresh(monkeypatch):
+def test_realtime_interval_cache_and_refresh(monkeypatch):
     calls = []
     async def get(self, url, headers):
         calls.append(url)
@@ -66,13 +66,13 @@ def test_realtime_thirty_second_cache_and_refresh(monkeypatch):
     rt = RealtimeFeed('https://example.org/feed')
     async def run():
         await rt._refresh()
-        rt.checked -= 29
+        rt.checked -= FEED_INTERVAL - 1
         await rt._refresh()
         assert len(calls) == 1
         rt.checked -= 2
         await rt._refresh()
     asyncio.run(run())
-    assert FEED_INTERVAL == 30 and len(calls) == 2
+    assert FEED_INTERVAL == 60 and len(calls) == 2
 
 
 def test_cached_feed_expires_even_before_next_request(monkeypatch):
@@ -369,7 +369,7 @@ def test_cache_reads_never_trigger_upstream_even_when_expired(monkeypatch):
         for stamp in (0, int(time.time()), int(time.time()) - 1000):
             rt.cached = Snapshot(timestamp=stamp)
             results = await asyncio.gather(*(rt.current_snapshot() for _ in range(50)))
-            assert all(status == ('available' if stamp and time.time()-stamp < 180 else 'unavailable')
+            assert all(status == ('available' if stamp and time.time()-stamp <= 300 else 'unavailable')
                        for _, status in results)
             assert rt.refresh_task is None
     asyncio.run(run())
@@ -384,7 +384,7 @@ def test_lifespan_refreshes_without_clients_and_stops(monkeypatch, provider):
             return await original_sleep(delay)
         waits.append(delay)
         if len(waits) == 1:
-            # Advance only the refresh guard, avoiding a real 30-second test.
+            # Advance only the refresh guard, avoiding a real interval wait.
             provider.realtime.checked -= FEED_INTERVAL
             return
         await asyncio.Event().wait()
@@ -404,6 +404,112 @@ def test_lifespan_refreshes_without_clients_and_stops(monkeypatch, provider):
                 while len(waits) < 2:
                     await original_sleep(.001)
             await asyncio.wait_for(refreshed_twice(), 1)
-            assert len(calls) == 2 and waits == [30, 30]
+            assert len(calls) == 2 and waits == [FEED_INTERVAL, FEED_INTERVAL]
         assert task.done() and provider.realtime.refresh_task is None
     asyncio.run(run())
+
+
+def test_realtime_backoff_and_recovery(monkeypatch):
+    calls = []
+    async def get(self, url, headers):
+        calls.append(url)
+        return httpx.Response(503 if len(calls) <= 5 else 200,
+                              content=feed().SerializeToString(), request=httpx.Request('GET', url))
+    monkeypatch.setattr(httpx.AsyncClient, 'get', get)
+    rt = RealtimeFeed('https://example.org/feed')
+    async def run():
+        for index, delay in enumerate([120, 240, 480, 900, 900]):
+            await rt._refresh()
+            assert rt.retry_delay == delay
+            await rt._refresh()
+            assert len(calls) == index + 1
+            rt.checked -= delay + 1
+        await rt._refresh()
+        assert rt.retry_delay == 60 and rt.failures == 0
+        assert (await rt.current_snapshot())[1] == 'available'
+    asyncio.run(run())
+
+
+@pytest.mark.parametrize('value,minimum', [('1800', 1800), ('invalid', 120), ('-1', 120), ('date', 1700)])
+def test_realtime_retry_after(monkeypatch, value, minimum):
+    from email.utils import formatdate
+    if value == 'date':
+        value = formatdate(time.time() + 1800, usegmt=True)
+    async def get(self, url, headers):
+        return httpx.Response(429, headers={'Retry-After': value}, request=httpx.Request('GET', url))
+    monkeypatch.setattr(httpx.AsyncClient, 'get', get)
+    rt = RealtimeFeed('https://example.org/feed')
+    asyncio.run(rt._refresh())
+    assert rt.retry_delay >= minimum
+
+
+def test_realtime_custom_interval(monkeypatch):
+    async def get(self, url, headers):
+        return httpx.Response(200, content=feed().SerializeToString(), request=httpx.Request('GET', url))
+    monkeypatch.setattr(httpx.AsyncClient, 'get', get)
+    rt = RealtimeFeed('https://example.org/feed', interval=120)
+    asyncio.run(rt._refresh())
+    assert rt.retry_delay == 120
+    with pytest.raises(ValueError):
+        RealtimeFeed(None, interval=0)
+
+
+@pytest.mark.parametrize('failure', ['timeout', '429', '503', 'malformed'])
+def test_cached_predictions_survive_outage_for_five_minutes(monkeypatch, failure):
+    from app.providers.gtfs_realtime import apply_update
+    from test_transit import update
+    clock = [int(time.time())]
+    monkeypatch.setattr(time, 'time', lambda: clock[0])
+    payload = feed()
+    u = update()
+    u.timestamp = clock[0]
+    u.stop_time_update.add(stop_sequence=2).departure.delay = 120
+    payload.entity.add(id='trip').trip_update.CopyFrom(u)
+    calls = []
+    async def get(self, url, headers):
+        calls.append(url)
+        if len(calls) > 1:
+            if failure == 'timeout':
+                raise httpx.ConnectTimeout('offline')
+            return httpx.Response(200 if failure == 'malformed' else int(failure),
+                                  content=b'invalid', request=httpx.Request('GET', url))
+        return httpx.Response(200, content=payload.SerializeToString(), request=httpx.Request('GET', url))
+    monkeypatch.setattr(httpx.AsyncClient, 'get', get)
+    rt = RealtimeFeed('https://example.org/feed')
+    async def run():
+        await rt._refresh()
+        timestamp = rt.cached.timestamp
+        clock[0] += 240
+        rt.checked -= 241
+        await rt._refresh()
+        assert rt.cached.timestamp == timestamp
+        for age in (240, 300, 301):
+            clock[0] = timestamp + age
+            snapshot, status = await rt.current_snapshot()
+            d = journey()
+            apply_update(d, 'departures', snapshot.updates)
+            assert (d.realtime is not None) == (age <= 300)
+            assert status == ('available' if age <= 300 else 'unavailable')
+        assert len(calls) == 2
+    asyncio.run(run())
+
+
+@pytest.mark.parametrize('age,accepted', [(300, True), (301, False)])
+def test_individual_trip_timestamp_expires_in_fresh_feed(monkeypatch, age, accepted):
+    from app.providers.gtfs_realtime import parse_snapshot, apply_update
+    from test_transit import update
+    now = int(time.time())
+    monkeypatch.setattr(time, 'time', lambda: now)
+    payload = feed()
+    u = update()
+    u.timestamp = now - age
+    u.delay = 60
+    payload.entity.add(id='trip').trip_update.CopyFrom(u)
+    snapshot = parse_snapshot(payload.SerializeToString())
+    d = journey()
+    apply_update(d, 'departures', snapshot.updates)
+    assert (d.realtime is not None) == accepted
+    # The same cutoff also applies to updates already present in the cache.
+    cached = journey()
+    apply_update(cached, 'departures', {('t', '20260929'): u})
+    assert (cached.realtime is not None) == accepted

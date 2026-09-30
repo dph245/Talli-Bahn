@@ -298,3 +298,28 @@ def test_static_query_skips_past_events_but_realtime_keeps_candidates(provider):
     assert [j.trip_id for j in static.journeys] == ['added']
     _, candidates = provider.scheduled('s', 'departures', now)
     assert {j.trip_id for j in candidates} == {'t', 'added'}
+
+
+@pytest.mark.parametrize('query', ['ber hbf', 'hbf ber', 'lin', '  HBF   BER  ', 'Berlin Hauptbahnhof'])
+def test_search_partial_words_any_order(provider, query):
+    assert [s.id for s in provider.search(query)] == ['s']
+
+
+def test_search_umlauts_ranking_and_literal_characters(provider):
+    import sqlite3
+    with sqlite3.connect(provider.path) as db:
+        for identifier, name in [('m', 'München Hauptbahnhof'), ('a', 'Am München Hbf'),
+                                 ('w', 'Wolfenbüttel Bahnhof'), ('x', 'Test_100%')]:
+            db.execute('INSERT INTO stops VALUES (?,?,?,?,?,?)',
+                       (identifier, name, name.casefold(), '', '', 1))
+    assert [s.id for s in provider.search('muenchen hbf')] == ['m', 'a']
+    assert [s.id for s in provider.search('hbf münch')] == ['a', 'm']
+    assert [s.id for s in provider.search('buettel bahn')] == ['w']
+    assert [s.id for s in provider.search('_100%')] == ['x']
+    assert provider.search('Berlin Potsdam') == []
+
+
+def test_demo_partial_search():
+    demo = DemoProvider()
+    assert [s.id for s in demo.search('hbf muen')] == ['demo-muenchen']
+    assert [s.id for s in demo.search('platz ber')] == ['demo-alex']

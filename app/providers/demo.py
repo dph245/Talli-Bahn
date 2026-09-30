@@ -1,5 +1,6 @@
 from datetime import datetime, timedelta
 from ..models import Board, BoardKind, Departure, Stop
+from .search import normalize_name, search_terms
 
 
 class DemoProvider:
@@ -7,7 +8,12 @@ class DemoProvider:
                 Stop(id="demo-hamburg", name="Hamburg Hauptbahnhof"), Stop(id="demo-muenchen", name="München Hauptbahnhof")]
 
     def search(self, query):
-        return [s for s in self.stations if query.casefold() in s.name.casefold()]
+        terms = search_terms(query)
+        phrase = ' '.join(terms)
+        matches = [s for s in self.stations if all(term in normalize_name(s.name) for term in terms)]
+        return sorted(matches, key=lambda s: (
+            0 if normalize_name(s.name) == phrase else 1 if normalize_name(s.name).startswith(phrase) else 2,
+            len(s.name), s.name, s.id))[:20]
 
     async def board(self, stop_id, kind: BoardKind, now: datetime):
         stop = next((s for s in self.stations if s.id == stop_id), None)

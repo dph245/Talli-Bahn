@@ -3,6 +3,7 @@ import asyncio
 from contextlib import suppress
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta, timezone
+from email.utils import parsedate_to_datetime
 import logging
 import re
 from urllib.parse import urlsplit
@@ -14,8 +15,8 @@ from ..models import Departure, BoardKind, ServiceAlert, alert_content_key
 
 log = logging.getLogger(__name__)
 DEFAULT_FEED_URL = "https://realtime.gtfs.de/realtime-free.pb"
-FEED_INTERVAL = 30
-MAX_AGE = 180
+FEED_INTERVAL = 60
+MAX_AGE = 300  # Keep cached predictions for up to five minutes during outages.
 DOWNLOAD_TIMEOUT = 120
 
 
@@ -31,7 +32,12 @@ class Snapshot:
 
 
 class RealtimeFeed:
-    def __init__(self, url: str | None, token: str | None = None):
+    def __init__(self, url: str | None, token: str | None = None, interval: int = FEED_INTERVAL):
+        if interval < 30:
+            raise ValueError("GTFS_RT_INTERVAL_SECONDS muss mindestens 30 sein")
+        self.interval = interval
+        self.retry_delay = interval
+        self.failures = 0
         self.url = url
         self.token = token
         self.lock = asyncio.Lock()
@@ -57,7 +63,7 @@ class RealtimeFeed:
         while True:
             await self._refresh()
             # Wait after completion: slow downloads never overlap or catch up.
-            await asyncio.sleep(FEED_INTERVAL)
+            await asyncio.sleep(self.retry_delay)
 
     async def current_snapshot(self):
         """Read only: clients never schedule or await an upstream request."""
@@ -69,7 +75,7 @@ class RealtimeFeed:
         if not self.url:
             return Snapshot()
         async with self.lock:
-            if time.monotonic() - self.checked < FEED_INTERVAL:
+            if time.monotonic() - self.checked < self.retry_delay:
                 return self.cached if self.cached.fresh() else Snapshot()
             self.refreshing = True
             try:
@@ -78,9 +84,24 @@ class RealtimeFeed:
                     response = await client.get(self.url, headers=headers)
                     response.raise_for_status()
                 self.cached = await asyncio.to_thread(parse_snapshot, response.content, self.url)
+                self.failures = 0
+                self.retry_delay = self.interval
             except (httpx.HTTPError, DecodeError, ValueError, TimeoutError) as error:
+                self.failures = min(self.failures + 1, 10)
+                self.retry_delay = max(self.interval, min(900, self.interval * 2 ** self.failures))
+                reason = type(error).__name__
+                if isinstance(error, httpx.HTTPStatusError):
+                    reason = f"HTTP {error.response.status_code}"
+                    if error.response.status_code in (429, 503):
+                        value = error.response.headers.get("Retry-After", "")
+                        try:
+                            delay = int(value) if value.isdigit() else (
+                                parsedate_to_datetime(value).timestamp() - time.time())
+                            self.retry_delay = max(self.retry_delay, delay)
+                        except (ValueError, TypeError, OverflowError):
+                            pass
                 # Missing realtime is a normal timetable fallback, not an API/UI error.
-                log.warning("GTFS-Realtime-Aktualisierung fehlgeschlagen (%s); verwende frischen Cache oder Sollzeiten", type(error).__name__)
+                log.warning("GTFS-Realtime-Aktualisierung fehlgeschlagen (%s); nächster Versuch in %.0f Sekunden; verwende frischen Cache oder Sollzeiten", reason, self.retry_delay)
             finally:
                 self.refreshing = False
             self.checked = time.monotonic()

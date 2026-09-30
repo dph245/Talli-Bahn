@@ -8,6 +8,7 @@ services:
       DATABASE_PATH: /app/data/gtfs.sqlite
       GTFS_RT_URL: ${GTFS_RT_URL-https://realtime.gtfs.de/realtime-free.pb}
       GTFS_RT_TOKEN: ${GTFS_RT_TOKEN:-}
+      GTFS_RT_INTERVAL_SECONDS: ${GTFS_RT_INTERVAL_SECONDS:-60}
       TRANSPORT_REST_ENABLED: ${TRANSPORT_REST_ENABLED:-true}
       DB_RIS_ENABLED: ${DB_RIS_ENABLED:-false}
       DB_CLIENT_ID: ${DB_CLIENT_ID:-}

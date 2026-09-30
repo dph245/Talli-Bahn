@@ -4,6 +4,7 @@ from pathlib import Path
 from zoneinfo import ZoneInfo
 from ..database import connect, validate_schema
 from ..models import Board, BoardKind, Departure, Stop
+from .search import SEARCH_NAME_SQL, like_pattern, search_terms
 
 BERLIN = ZoneInfo("Europe/Berlin")
 
@@ -34,13 +35,17 @@ class GTFSStaticProvider:
         self.path = path
 
     def search(self, query):
-        escaped = query.casefold().replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
+        terms = search_terms(query)
+        phrase = ' '.join(terms)
+        conditions = ' AND '.join(r"name LIKE ? ESCAPE '\'" for _ in terms) or '1=1'
         with connect(self.path) as db:
-            rows = db.execute(r"""SELECT stop_id, stop_name FROM stops
-                WHERE search_name LIKE ? ESCAPE '\' AND location_type IN (0,1)
-                AND (parent_station='' OR parent_station IS NULL)
-                ORDER BY CASE WHEN search_name LIKE ? ESCAPE '\' THEN 0 ELSE 1 END, length(stop_name), stop_name LIMIT 20""",
-                (f"%{escaped}%", f"{escaped}%")).fetchall()
+            rows = db.execute(f"""WITH stations AS (
+                SELECT stop_id, stop_name, {SEARCH_NAME_SQL} AS name FROM stops
+                WHERE location_type IN (0,1) AND (parent_station='' OR parent_station IS NULL)
+                ) SELECT stop_id, stop_name FROM stations WHERE {conditions}
+                ORDER BY CASE WHEN name = ? THEN 0 WHEN name LIKE ? ESCAPE '\\' THEN 1 ELSE 2 END,
+                length(stop_name), stop_name, stop_id LIMIT 20""",
+                (*('%' + like_pattern(term) + '%' for term in terms), phrase, like_pattern(phrase) + '%')).fetchall()
         return [Stop(id=r["stop_id"], name=r["stop_name"]) for r in rows]
 
     def scheduled(self, stop_id, kind, now, lookback_hours=2):

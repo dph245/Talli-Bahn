@@ -54,7 +54,7 @@ Der Import ist auf `Europe/Berlin` ausgerichtet. Taktbasierte `frequencies.txt` 
 
 GTFS Deutschland ist die primäre Basis für Haltestellen, Linien, Fahrten, Sollzeiten und Betreiber (`agency.txt` + `routes.agency_id`). **Nach diesem Schema-Update bestehende GTFS-Datenbanken erneut importieren**; alte Datenbanken werden mit einem verständlichen Fehler abgelehnt. Der atomare Import erhält bis zum Abschluss den bisherigen Datenbestand.
 
-Standard-Echtzeitquelle ist `https://realtime.gtfs.de/realtime-free.pb`. Der [GTFS.de-Feed](https://www.gtfs.de/de/realtime/) enthält TripUpdates und ServiceAlerts, passt zu den dort angebotenen statischen Feeds und wird alle **10 Sekunden** erneuert. Ein zentraler Hintergrundworker lädt den Feed beim Backend-Start und wartet nach jedem abgeschlossenen Abruf mindestens **30 Sekunden** vor dem nächsten Versuch. Das gilt auch bei Fehlern und ohne offene Tafel. Client-Anfragen lesen ausschließlich den Cache und lösen niemals Upstream-Abrufe aus. Die Oberfläche kann weiterhin alle zehn Sekunden aktualisieren. Der Container startet explizit mit einem Uvicorn-Worker, damit alle Clients denselben Cache und Abrufprozess verwenden. Mehrere Backend-Replikate würden einen separaten, gemeinsam genutzten Cache/Collector benötigen.
+Standard-Echtzeitquelle ist `https://realtime.gtfs.de/realtime-free.pb`. Der [GTFS.de-Feed](https://www.gtfs.de/de/realtime/) enthält TripUpdates und ServiceAlerts, passt zu den dort angebotenen statischen Feeds und wird alle **10 Sekunden** erneuert. Ein zentraler Hintergrundworker lädt den Feed beim Backend-Start und wartet nach jedem abgeschlossenen Abruf standardmäßig **60 Sekunden** vor dem nächsten Versuch (`GTFS_RT_INTERVAL_SECONDS`, mindestens 30). Bei aufeinanderfolgenden Fehlern steigt die Pause auf 120, 240, 480 und maximal 900 Sekunden; eine längere `Retry-After`-Vorgabe bei HTTP 429/503 wird eingehalten. Nach einem erfolgreichen Abruf gilt wieder das normale Intervall. HTTP-Status und Wartezeit erscheinen im Fehlerlog. Der Worker läuft auch ohne offene Tafel. Client-Anfragen lesen ausschließlich den Cache und lösen niemals Upstream-Abrufe aus. Die Oberfläche kann weiterhin alle zehn Sekunden aktualisieren. Der Container startet explizit mit einem Uvicorn-Worker, damit alle Clients denselben Cache und Abrufprozess verwenden. Mehrere Backend-Replikate würden einen separaten, gemeinsam genutzten Cache/Collector benötigen.
 
 ```bash
 TRANSIT_PROVIDER=gtfs uvicorn app.main:app
@@ -85,7 +85,7 @@ Alle Adapter liefern dasselbe interne `Departure`-Objekt (auch für Ankünfte). 
 
 **`realtime: null` ist ein normaler Zustand.** Die Tafel zeigt `scheduled` mit „Nach Fahrplan“. Eine explizite Prognose mit null Minuten Verspätung wird als Zeitstempel übertragen und als pünktlich dargestellt. Ausfall, Gleiswechsel und Verkehrsmeldungen sind unabhängig von einer Zeitprognose. Leere/fehlende Echtzeitfeeds, Timeouts und veraltete Daten verhindern die Fahrplananzeige nicht und erzeugen keine Fehlermeldung in der Oberfläche; technische Abruffehler erscheinen nur im Backend-Log.
 
-Der Adapter unterstützt Protobuf-FULL_DATASET-Snapshots, Ankunfts-/Abfahrtsprognosen als Zeitstempel oder Verspätung, explizite Fahrtverspätungen, Fahrt-Ausfälle und ausgelassene Halte. Feed-/Trip-Zeitstempel älter als 180 Sekunden werden nicht verwendet, auch nicht aus dem Cache. Ein Feed ohne Zeitstempel wird ignoriert.
+Der Adapter unterstützt Protobuf-FULL_DATASET-Snapshots, Ankunfts-/Abfahrtsprognosen als Zeitstempel oder Verspätung, explizite Fahrtverspätungen, Fahrt-Ausfälle und ausgelassene Halte. Bei Abruffehlern bleiben Echtzeitdaten aus dem Cache bis zu fünf Minuten nutzbar. Maßgeblich sind die Feed-/Trip-Zeitstempel, nicht der letzte Abrufversuch; älter als 300 Sekunden werden sie nicht verwendet. Danach zeigt die Tafel wieder Sollzeiten. Ein Feed ohne Zeitstempel wird ignoriert.
 
 ServiceAlerts werden nach Haltestelle, Linie/Route, Betreiber, Verkehrsmittel und Fahrt/Verkehrstag/Richtung zugeordnet. Kriterien innerhalb eines Selektors gelten gemeinsam; mehrere Selektoren alternativ. Gültigkeitszeiträume werden berücksichtigt, deutsche Texte bevorzugt. Die Oberfläche zeigt nur normalisierte Meldungstexte und führt kein HTML aus Quellen aus.
 
@@ -121,7 +121,7 @@ Danach `docker compose up --build -d` bzw. Uvicorn mit `--env-file .env` neu sta
 
 ## Oberfläche
 
-- Haltestellensuche mit Tastaturbedienung (`/` öffnet die Suche)
+- Haltestellensuche mit Namensteilen in beliebiger Reihenfolge (z. B. `hbf braun`), Umlauten oder `ae/oe/ue` und `Hbf`/`Hauptbahnhof`; exakte Treffer zuerst, maximal 20 Ergebnisse. Tastaturbedienung: `/` öffnet die Suche.
 - Favoriten, Design und Auto-Refresh-Einstellung in `localStorage`
 - Abfahrten/Ankünfte, alle Verkehrsmittel auf einer Tafel
 - Sollzeit, Prognose, Verspätung, Ausfall, Linie, Ziel/Herkunft und Gleis/Steig
