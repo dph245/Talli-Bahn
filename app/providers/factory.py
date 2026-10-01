@@ -28,7 +28,8 @@ def create_provider() -> TransitProvider:
     if selected != "demo" and path.exists():
         primary = GTFSProvider(path, RealtimeFeed(
             os.getenv("GTFS_RT_URL", DEFAULT_FEED_URL), os.getenv("GTFS_RT_TOKEN"),
-            interval=int(os.getenv("GTFS_RT_INTERVAL_SECONDS", "60"))))
+            interval=int(os.getenv("GTFS_RT_INTERVAL_SECONDS", "60"))),
+            efa_enabled=os.getenv("VRB_EFA_ENABLED", "false").lower() == "true")
         if os.getenv("DB_RIS_ENABLED", "false").lower() != "true":
             return with_platforms(primary)
         client_id, api_key = os.getenv("DB_CLIENT_ID"), os.getenv("DB_API_KEY")

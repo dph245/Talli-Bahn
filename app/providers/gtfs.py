@@ -5,23 +5,32 @@ from ..models import Board
 from .gtfs_static import GTFSStaticProvider
 from .gtfs_realtime import RealtimeFeed, apply_update, apply_alerts, matching_alert_entries
 from .time_window import visible_departures
+from .vrb_efa import EFAFeed
 
 
 class GTFSProvider(GTFSStaticProvider):
-    def __init__(self, path: Path, realtime: RealtimeFeed):
+    def __init__(self, path: Path, realtime: RealtimeFeed, efa_enabled=False):
         super().__init__(path)
         self.realtime = realtime
+        self.efa = EFAFeed(self) if efa_enabled else None
 
     async def start(self):
         await self.realtime.start()
+        if self.efa:
+            await self.efa.start()
 
     async def stop(self):
+        if self.efa:
+            await self.efa.stop()
         await self.realtime.stop()
 
     async def board_candidates(self, stop_id, kind, now):
         (station, departures), (snapshot, realtime_status) = await asyncio.gather(
             asyncio.to_thread(self.scheduled, stop_id, kind, now), self.realtime.current_snapshot())
-        return await asyncio.to_thread(self.enrich, station, departures, snapshot, realtime_status, stop_id, kind, now)
+        board = await asyncio.to_thread(self.enrich, station, departures, snapshot, realtime_status, stop_id, kind, now)
+        if self.efa:
+            self.efa.enrich(board)
+        return board
 
     def enrich(self, station, departures, snapshot, realtime_status, stop_id, kind, now):
         for departure in departures:

@@ -239,3 +239,41 @@ wartet nicht darauf. Bei Fehlern oder fehlenden Gleisen bleiben die bisherigen
 Daten sichtbar. Die Quelle garantiert somit keine vollständige Gleisabdeckung.
 Beim Integrationstest lieferte der öffentliche Live-Endpunkt HTTP 503; die
 Zuordnung und Fehlerbehandlung sind mit synthetischen API-Antworten getestet.
+
+### Optionale VRB-EFA-Echtzeit
+
+`VRB_EFA_ENABLED=true` aktiviert die Ergänzung (Standard: `false`, auch in Compose).
+GTFS.de bestimmt weiterhin allein die Fahrtenliste. Unterstützt sind zunächst
+nur die untersuchten EFA-Steige: Wolfenbüttel Birkenweg (`de:03158:1677:1:1`),
+Kornmarkt (`de:03158:461:2:E`), Bahnhof (`de:03158:458:1:A`) und Braunschweig
+Helmstedter Straße (`de:03101:255:1:B`). Andere Steige und Ankünfte bleiben unverändert.
+
+Vor jedem Abruf muss der exakte Haltestellenname im geladenen GTFS genau eine
+Haltestellengruppe ergeben. Das Matching berücksichtigt sämtliche Unterhalte
+dieser Gruppe, aktive Betriebstage einschließlich Kalenderausnahmen und Zeiten
+über 24 Uhr, die Linie und den exakten Sollzeitpunkt. Mehrere Kandidaten werden
+nur bei genau einem passenden Ziel aufgelöst; beim Zielvergleich wird allein
+der beobachtete technische Zusatz `| Haltestelle <Zahl>` entfernt. Kein Fuzzy-Matching,
+keine Zeittoleranz und keine Identifikation über EFA-`tripCode`, `globalId` oder
+`AVMSTripID`. Die Zuordnung verwendet den vollständigen GTFS-Kandidatenbestand
+der Gruppe im bestehenden Zeitfenster, bevor Sichtbarkeit oder Echtzeit ihn verändern.
+
+Ein Hintergrundtask pro Serverprozess fragt die vier Steige nacheinander mit
+mindestens 1,1 Sekunden Abstand ab und wartet anschließend 60 Sekunden. Er
+verwendet ausschließlich den untersuchten Minimalrequest mit `limit=20`, ohne
+vollständige Haltefolge. Tafelaufrufe lesen nur den gemeinsamen Cache. Der
+HTTP-Timeout beträgt acht Sekunden; Cache-Einträge verfallen nach fünf Minuten
+seit erfolgreichem Abruf. EFA liefert hier keinen belegten Prognose-Erstellzeitpunkt;
+das Cachealter beschreibt daher das Abrufalter. Für einen einzigen zentralen
+Abrufworker Talli wie in der mitgelieferten Konfiguration mit einem Prozess betreiben.
+
+Nur überwachte Events mit gültiger geplanter und geschätzter Abfahrtszeit werden
+übernommen, auch bei identischen Zeiten. Bereits vorhandene GTFS-RT-Prognosen
+und Ausfälle haben Vorrang. EFA ergänzt weder Fahrten noch Gleise oder Ausfälle.
+Fehlende, mehrdeutige oder widersprüchliche Prognosen werden ignoriert. Bei
+Abruf-/JSON-Fehlern bleibt höchstens der noch frische Cache nutzbar, danach die
+bisherige GTFS-/GTFS-RT-Tafel. `realtime=false` bleibt rein statisch.
+
+Die Probe ergab 80 plausible Matches an vier Haltestellen, jedoch keine Garantie
+für andere Tage, Nachtverkehr, Umleitungen oder Fahrplanwechsel. Das Limit von
+20 Events und die Beschränkung auf vier Steige begrenzen die Abdeckung bewusst.
