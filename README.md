@@ -258,14 +258,22 @@ keine Zeittoleranz und keine Identifikation über EFA-`tripCode`, `globalId` ode
 `AVMSTripID`. Die Zuordnung verwendet den vollständigen GTFS-Kandidatenbestand
 der Gruppe im bestehenden Zeitfenster, bevor Sichtbarkeit oder Echtzeit ihn verändern.
 
-Ein Hintergrundtask pro Serverprozess fragt die vier Steige nacheinander mit
-mindestens 1,1 Sekunden Abstand ab und wartet anschließend 60 Sekunden. Er
-verwendet ausschließlich den untersuchten Minimalrequest mit `limit=20`, ohne
-vollständige Haltefolge. Tafelaufrufe lesen nur den gemeinsamen Cache. Der
-HTTP-Timeout beträgt acht Sekunden; Cache-Einträge verfallen nach fünf Minuten
-seit erfolgreichem Abruf. EFA liefert hier keinen belegten Prognose-Erstellzeitpunkt;
-das Cachealter beschreibt daher das Abrufalter. Für einen einzigen zentralen
-Abrufworker Talli wie in der mitgelieferten Konfiguration mit einem Prozess betreiben.
+Eine tatsächlich angefragte unterstützte Abfahrtstafel stößt bei fehlendem oder
+mindestens 60 Sekunden altem Cache einen Hintergrundrefresh an. Die Tafel wartet
+nicht auf EFA, sondern verwendet vorhandene Daten oder Plan. Gleichzeitig
+angefragte Tafeln teilen pro Serverprozess einen Cache und genau einen laufenden
+Refresh je DHID. Abrufe verschiedener Steige werden ebenfalls sequenziell mit
+mindestens 1,1 Sekunden Abstand ausgeführt. Ohne Tafelanfragen gibt es kein Polling;
+nach einem Fehler kann frühestens nach 60 Sekunden eine weitere Anfrage einen
+neuen Versuch auslösen. Ein nicht mehr eindeutig auflösbarer Haltestellenname
+löscht einen vorhandenen frischen Cache nicht vorzeitig.
+
+Verwendet wird ausschließlich der untersuchte Minimalrequest mit `limit=20`,
+ohne vollständige Haltefolge. Der HTTP-Timeout beträgt acht Sekunden;
+Cache-Einträge verfallen nach fünf Minuten seit erfolgreichem Abruf. EFA liefert
+hier keinen belegten Prognose-Erstellzeitpunkt; das Cachealter beschreibt daher
+das Abrufalter. Für einen einzigen zentralen Abrufcache Talli wie in der
+mitgelieferten Konfiguration mit einem Prozess betreiben.
 
 Nur überwachte Events mit gültiger geplanter und geschätzter Abfahrtszeit werden
 übernommen, auch bei identischen Zeiten. Bereits vorhandene GTFS-RT-Prognosen

@@ -84,7 +84,11 @@ class EFAFeed:
     def __init__(self, static):
         self.static = static
         self.cached = {}
-        self.task = None
+        self.tasks = {}
+        self.checked = {}
+        self.lock = asyncio.Lock()
+        self.last_refresh = float("-inf")
+        self.stopped = False
 
     def resolve_group(self, name):
         with connect(self.static.path) as db:
@@ -97,30 +101,50 @@ class EFAFeed:
             return root if station is not None and not station['parent_station'] else None
 
     async def start(self):
-        if self.task is None or self.task.done():
-            self.task = asyncio.create_task(self._run(), name="vrb-efa-refresh")
+        self.stopped = False
 
     async def stop(self):
-        if self.task is not None:
-            self.task.cancel()
+        self.stopped = True
+        tasks = list(self.tasks.values())
+        for task in tasks:
+            task.cancel()
+        for task in tasks:
             with suppress(asyncio.CancelledError):
-                await self.task
-            self.task = None
+                await task
+        self.tasks.clear()
 
-    async def _run(self):
-        async with httpx.AsyncClient(timeout=8) as client:
-            while True:
-                for dhid, name in STOPS.items():
+    def request_refresh(self, board):
+        if self.stopped or board.kind != "departures":
+            return
+        for dhid, name in STOPS.items():
+            if board.stop.name != name:
+                continue
+            task = self.tasks.get(dhid)
+            if task is not None and not task.done():
+                continue
+            cached_at = self.cached.get(dhid, (float("-inf"), {}))[0]
+            checked_at = self.checked.get(dhid, float("-inf"))
+            if time.monotonic() - max(cached_at, checked_at) < INTERVAL:
+                continue
+            # No await between checking and registering: concurrent board requests
+            # share one pending refresh per DHID on the server event loop.
+            self.tasks[dhid] = asyncio.create_task(
+                self._refresh(dhid, name), name="vrb-efa-refresh")
+
+    async def _refresh(self, dhid, name):
+        async with self.lock:
+            await asyncio.sleep(max(0, 1.1 - (time.monotonic() - self.last_refresh)))
+            try:
+                async with httpx.AsyncClient(timeout=8) as client:
                     await self.refresh_stop(client, dhid, name)
-                    await asyncio.sleep(1.1)
-                # Like GTFS-RT: wait after completion, with no catch-up or client polling.
-                await asyncio.sleep(INTERVAL)
+            finally:
+                # Throttle failures too; only a later board request can retry.
+                self.checked[dhid] = self.last_refresh = time.monotonic()
 
     async def refresh_stop(self, client, dhid, name):
         try:
             group = await asyncio.to_thread(self.resolve_group, name)
             if group is None:
-                self.cached.pop(dhid, None)
                 return
             response = await client.get(URL, params={
                 "name_dm": dhid, "type_dm": "stop", "useRealtime": "1", "limit": "20",
@@ -138,6 +162,7 @@ class EFAFeed:
             log.warning("VRB-EFA-Aktualisierung fehlgeschlagen (%s); verwende frischen Cache oder GTFS", type(error).__name__)
 
     def enrich(self, board):
+        self.request_refresh(board)
         if board.kind != "departures":
             return
         predictions = {}

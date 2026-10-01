@@ -124,3 +124,65 @@ def test_refresh_matches_active_gtfs_service_day(provider, monkeypatch):
         assert next(d for d in board.journeys if d.trip_id == 'added').realtime is None
         assert len(requests) == 1
     asyncio.run(run())
+
+
+def test_on_demand_refresh_is_nonblocking_deduplicated_and_throttled(provider, monkeypatch):
+    from types import SimpleNamespace
+    from app.providers import vrb_efa
+    clock = [1000.0]
+    monkeypatch.setattr(vrb_efa, 'time', SimpleNamespace(monotonic=lambda: clock[0]))
+    monkeypatch.setattr(vrb_efa, 'STOPS', {DHID: 'Berlin Hbf'})
+    feed = provider.efa = EFAFeed(provider)
+    calls = []
+
+    async def run():
+        entered, release = asyncio.Event(), asyncio.Event()
+        async def refresh(client, dhid, name):
+            calls.append(dhid)
+            entered.set()
+            await release.wait()  # An arbitrarily slow upstream must not hold the board.
+            if len(calls) == 1:
+                feed.cached[dhid] = (clock[0], {})
+            # The second attempt simulates a handled failure, leaving the cache unchanged.
+        monkeypatch.setattr(feed, 'refresh_stop', refresh)
+        await feed.start()
+        await asyncio.sleep(0)
+        assert not calls and not feed.tasks
+        await provider.board('s', 'arrivals', NOW)
+        await provider.static_board('s', 'departures', NOW)
+        assert not feed.tasks
+        boards = await asyncio.wait_for(asyncio.gather(*(
+            provider.board('s', 'departures', NOW) for _ in range(5))), timeout=2)
+        assert all(b.journeys and all(d.realtime is None for d in b.journeys) for b in boards)
+        await asyncio.wait_for(entered.wait(), timeout=2)
+        assert calls == [DHID]
+        release.set()
+        await feed.tasks[DHID]
+        clock[0] += 59
+        await provider.board('s', 'departures', NOW)
+        assert calls == [DHID]
+        clock[0] += 2
+        await asyncio.sleep(0)
+        assert calls == [DHID]  # Aging alone never triggers polling.
+        await provider.board('s', 'departures', NOW)
+        await feed.tasks[DHID]
+        assert calls == [DHID, DHID]
+        await provider.board('s', 'departures', NOW)
+        await asyncio.sleep(0)
+        assert calls == [DHID, DHID]  # Failure is throttled despite the old cache.
+        await feed.stop()
+    asyncio.run(run())
+
+
+def test_unresolved_group_preserves_fresh_cache(provider, monkeypatch):
+    feed = EFAFeed(provider)
+    feed.cached[DHID] = (time.monotonic(), {'j': NOW})
+    before = dict(feed.cached)
+    monkeypatch.setattr(feed, 'resolve_group', lambda name: None)
+    async def get(request):
+        pytest.fail('An unresolved group must not request EFA')
+    async def run():
+        async with httpx.AsyncClient(transport=httpx.MockTransport(get)) as client:
+            await feed.refresh_stop(client, DHID, NAME)
+        assert feed.cached == before
+    asyncio.run(run())
