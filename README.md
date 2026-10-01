@@ -277,7 +277,10 @@ mitgelieferten Konfiguration mit einem Prozess betreiben.
 
 Nur überwachte Events mit gültiger geplanter und geschätzter Abfahrtszeit werden
 übernommen, auch bei identischen Zeiten. Bereits vorhandene GTFS-RT-Prognosen
-und Ausfälle haben Vorrang. EFA ergänzt weder Fahrten noch Gleise oder Ausfälle.
+und Ausfälle haben Vorrang. EFA ergänzt keine Fahrten oder Ausfälle. Ein fehlender Steig wird ausschließlich
+aus dem bereits eindeutig gematchten Event ergänzt: `location.properties.platformName`
+hat Vorrang vor `location.properties.platform`. Bestehende Plattformwerte und
+`scheduled_platform` bleiben unverändert; fehlende EFA-Werte bleiben leer.
 Fehlende, mehrdeutige oder widersprüchliche Prognosen werden ignoriert. Bei
 Abruf-/JSON-Fehlern bleibt höchstens der noch frische Cache nutzbar, danach die
 bisherige GTFS-/GTFS-RT-Tafel. `realtime=false` bleibt rein statisch.

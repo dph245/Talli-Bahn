@@ -6,6 +6,7 @@ import logging
 import re
 import sqlite3
 import time
+from typing import NamedTuple
 
 import httpx
 from pydantic import BaseModel, Field, ValidationError
@@ -28,6 +29,19 @@ STOPS = {
 class Location(BaseModel):
     id: str
     name: str
+    properties: dict = Field(default_factory=dict)
+
+    def platform(self):
+        for key in ("platformName", "platform"):
+            value = self.properties.get(key)
+            if isinstance(value, str) and value.strip():
+                return value.strip()
+        return None
+
+
+class Prediction(NamedTuple):
+    estimated: datetime
+    platform: str | None = None
 
 
 class Destination(BaseModel):
@@ -74,9 +88,13 @@ def match_predictions(events, departures, dhid, name):
         if len(candidates) != 1:
             continue
         key = candidates[0].id  # GTFS service date, trip and stop sequence, never EFA IDs.
-        if key in predictions and predictions[key] != estimated:
-            conflicts.add(key)
-        predictions[key] = estimated
+        platform = event.location.platform()
+        if key in predictions:
+            if predictions[key].estimated != estimated:
+                conflicts.add(key)
+            if predictions[key].platform != platform:
+                platform = None
+        predictions[key] = Prediction(estimated, platform)
     return {key: value for key, value in predictions.items() if key not in conflicts}
 
 
@@ -173,9 +191,20 @@ class EFAFeed:
         applied = False
         for departure in board.journeys:
             values = predictions.get(departure.id, set())
-            if len(values) != 1 or departure.realtime is not None or departure.cancelled:
+            if len(values) != 1 or departure.cancelled:
                 continue
-            departure.realtime = next(iter(values)).astimezone(departure.scheduled.tzinfo)
+            prediction = next(iter(values))
+            changed = False
+            if departure.realtime is None:
+                departure.realtime = prediction.estimated.astimezone(departure.scheduled.tzinfo)
+                changed = True
+            # Fill gaps only: preserve existing platform observations, including GTFS.
+            # A GTFS-RT time does not prevent independently filling a missing platform.
+            if prediction.platform and not (departure.platform or "").strip():
+                departure.platform = prediction.platform
+                changed = True
+            if not changed:
+                continue
             departure.source += " + VRB-EFA"
             applied = True
         if applied:
