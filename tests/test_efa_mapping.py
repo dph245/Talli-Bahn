@@ -104,3 +104,92 @@ def test_observed_platform_ids_survive_restart(provider,tmp_path):
     store.record_platforms(group,result,events)
     reloaded=MappingStore(provider.path,tmp_path/'absent.json',tmp_path/'cache').read(group)
     assert reloaded['platforms']==['de:03158:460:1:A','de:03158:460:1:B']
+
+
+def alias_payload():
+    # Shape observed in EFA: the same DHID has a qualified alternative name.
+    group = dict(id='395508', name='SZ-Lebenstedt, Bahnhof',
+                 coord=[52.152466, 10.33183], stops=['395508'])
+    alias = dict(id='de:03102:3137', type='stop', name=group['name'],
+                 parent={'name': 'Lebenstedt'}, coord=[52.152464, 10.33183])
+    location = dict(alias, name='Lebenstedt, Bahnhof', assignedStops=[alias])
+    return group, {'locations': [location]}
+
+
+@pytest.mark.parametrize('variant', ['observed', 'unrelated_prefix', 'duplicate'])
+def test_same_dhid_qualified_alias_is_unique(variant):
+    from copy import deepcopy
+    group, data = alias_payload()
+    if variant == 'unrelated_prefix':
+        group['name'] = 'Anderer Ortsname, Bahnhof'
+        data['locations'][0]['assignedStops'][0]['name'] = group['name']
+    if variant == 'duplicate':
+        data['locations'] += deepcopy(data['locations'])
+    result = classify(group, data)
+    assert result['status'] == 'UNIQUE'
+    assert result['dhid'] == 'de:03102:3137'
+    assert result['name'] == group['name']
+    assert result['distance_m'] < 1
+
+
+@pytest.mark.parametrize('variant', ['foreign_dhid', 'platform_dhid', 'wrong_type',
+    'missing_coords', 'far', 'invalid_coords', 'wrong_parent', 'missing_parent',
+    'abbreviated_name', 'missing_aliases', 'malformed_aliases', 'malformed_alias'])
+def test_alias_does_not_bypass_identity_or_distance(variant):
+    group, data = alias_payload()
+    loc = data['locations'][0]
+    alias = loc['assignedStops'][0]
+    if variant == 'foreign_dhid': alias['id'] = 'de:03102:9999'
+    if variant == 'platform_dhid': alias['id'] += ':1:A'
+    if variant == 'wrong_type': alias['type'] = 'locality'
+    if variant == 'missing_coords': alias.pop('coord')
+    if variant == 'far': alias['coord'] = [53, 10]
+    if variant == 'invalid_coords': alias['coord'] = [float('nan'), 10]
+    if variant == 'wrong_parent': alias['parent'] = {'name': 'Anderer Ort'}
+    if variant == 'missing_parent': alias.pop('parent')
+    if variant == 'abbreviated_name': alias['name'] = 'SZ-Lebenstedt, Bhf.'
+    if variant == 'missing_aliases': loc.pop('assignedStops')
+    if variant == 'malformed_aliases': loc['assignedStops'] = {}
+    if variant == 'malformed_alias': loc['assignedStops'] = [None, 'invalid']
+    assert classify(group, data)['status'] != 'UNIQUE'
+
+
+def test_two_matching_alias_dhids_remain_ambiguous():
+    from copy import deepcopy
+    group, data = alias_payload()
+    second = deepcopy(data['locations'][0])
+    second['id'] = second['assignedStops'][0]['id'] = 'de:03102:9999'
+    data['locations'].append(second)
+    result = classify(group, data)
+    assert result['status'] == 'AMBIGUOUS'
+    assert {c['dhid'] for c in result['candidates']} == {'de:03102:3137', 'de:03102:9999'}
+
+
+def test_cached_negative_result_is_reclassified_without_rewriting(provider, tmp_path):
+    group, data = alias_payload()
+    store = MappingStore(provider.path, tmp_path/'absent.json', tmp_path/'cache')
+    path = store.cache / (store.key(group) + '.json')
+    atomic_json(path, dict(group=group, response=data, result=dict(status='NONE', candidates=[])))
+    before = path.read_bytes()
+    assert store.read(group)['status'] == 'UNIQUE'
+    assert path.read_bytes() == before
+
+
+def test_alias_mapping_reaches_departure_monitor(provider, tmp_path, monkeypatch):
+    import sqlite3
+    group, data = alias_payload()
+    group.update(id='s', stops=['s', 'p'])
+    with sqlite3.connect(provider.path) as db:
+        db.execute('UPDATE stops SET stop_name=? WHERE stop_id IN (?, ?)', (group['name'], 's', 'p'))
+    feed = EFAFeed(provider)
+    feed.mapping = MappingStore(provider.path, tmp_path/'absent.json', tmp_path/'cache')
+    feed.mapping.save(group, data)
+    calls = []
+    async def get(client, url, params):
+        calls.append(params)
+        return httpx.Response(200, json={'stopEvents': []}, request=httpx.Request('GET', url))
+    monkeypatch.setattr(httpx.AsyncClient, 'get', get)
+    asyncio.run(feed._refresh(group))
+    assert len(calls) == 1
+    assert calls[0]['name_dm'] == 'de:03102:3137'
+    assert feed.cached['s'][1] == {}

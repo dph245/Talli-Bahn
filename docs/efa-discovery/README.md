@@ -43,6 +43,16 @@ app/providers/efa_mapping.py, getrennt vom Fahrtenmatching.
    Name (Unicode-NFC, casefold, Leerzeichen um Kommas), Distanz <=100 m.
    Ohne Koordinaten oder eindeutig prüfbaren Ort kein UNIQUE. Abkürzungen werden
    nicht expandiert. AMBIGUOUS kann auch einen plausiblen Einzelkandidaten bedeuten.
+   Zusätzlich werden `assignedStops` vom Typ `stop` mit exakt derselben
+   Haltestellen-DHID geprüft. Ein dort ausdrücklich gelieferter vollständiger
+   Name kann eine alternative Ortsschreibweise vor dem Komma belegen, wenn
+   sein `parent.name` mit dem des übergeordneten Treffers übereinstimmt.
+   Der Alias braucht eigene gültige Koordinaten innerhalb von 100 m und einen
+   vollständig passenden Namen. Keine Präfixersetzung, keine fremden DHIDs oder
+   Plattform-DHIDs, keine Vermischung von Namen und Koordinaten verschiedener
+   Einträge. Mehrere passende DHIDs bleiben AMBIGUOUS; mehrere Angaben derselben
+   DHID zählen nur einmal. Beispiel der beobachteten Antwort: `Lebenstedt, Bahnhof`
+   mit Alias `SZ-Lebenstedt, Bahnhof`, beide `de:03102:3137`, parent `Lebenstedt`.
 4. Rohantwort und Klassifikation werden atomar im persistenten Cache gespeichert,
    auch NONE/AMBIGUOUS. Negative Ergebnisse lösen keine erneute Discovery aus.
    Bei gewünschter Neubewertung gezielt die betreffende Cachedatei entfernen.
@@ -61,6 +71,12 @@ und werden erneut gegen die Kriterien ausgewertet. Bekannte geprüfte Mappings
 stehen als Daten in efa_seed.json; damit bleibt die bisherige Unterstützung
 auch ohne neu vorbereiteten Katalog erhalten. Es gibt keine Haltestellenfälle
 in UI oder Fahrtenlogik.
+
+Nach einer Änderung der Klassifikation genügt für bereits gespeicherte
+Stopfinder-Antworten ein Neustart des Dienstes: `MappingStore.read` klassifiziert
+deren `response` erneut, auch wenn das gespeicherte `result` noch NONE enthält.
+Die Cachedatei wird dabei nicht umgeschrieben. Ein Katalog-Neubau ist für die
+Alias-Erweiterung nicht erforderlich, sofern die Datenbanksignatur weiterhin passt.
 
 ## Betrieb
 

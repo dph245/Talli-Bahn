@@ -35,26 +35,57 @@ def classify(group, payload):
         dhid = loc.get('id', '')
         if not isinstance(dhid, str) or not re.fullmatch(r'de:\d+:\d+', dhid):
             continue
-        name = loc.get('name', '')
-        parent = loc.get('parent') or {}
-        coord = loc.get('coord')
-        if not isinstance(name, str) or not isinstance(parent, dict):
-            continue
-        meters = None
-        if (isinstance(coord, list) and len(coord) == 2
-                and all(isinstance(v, (int, float)) and math.isfinite(v) for v in coord)
-                and -90 <= coord[0] <= 90 and -180 <= coord[1] <= 180):
-            meters = distance(group['coord'], coord)
-        same_city = bool(separator) and normalized(str(parent.get('name', ''))) == normalized(locality)
-        same_name = normalized(name) == normalized(group['name'])
-        item = dict(dhid=dhid, name=name, distance_m=meters, platforms=[])
-        if same_city and (same_name or meters is not None and meters <= 100):
-            plausible[dhid] = item
-        if same_city and same_name and meters is not None and meters <= 100:
-            exact[dhid] = item
+        # Only explicit names of this very stop are aliases, never neighbouring
+        # assigned stops or platforms. Keep each alias's coordinates and locality
+        # evidence together rather than mixing fields from different records.
+        assigned = loc.get('assignedStops')
+        variants = [loc]
+        if isinstance(assigned, list):
+            variants += [a for a in assigned if isinstance(a, dict)
+                         and a.get('type') == 'stop' and a.get('id') == dhid]
+        for variant in variants:
+            item, same_city, same_name = classify_name(group, locality, separator, loc, variant)
+            if item is None:
+                continue
+            meters = item['distance_m']
+            if same_city and (same_name or meters is not None and meters <= 100):
+                plausible[dhid] = item
+            if same_city and same_name and meters is not None and meters <= 100:
+                exact[dhid] = item
     if len(exact) == 1:
         return dict(status='UNIQUE', **next(iter(exact.values())))
     return dict(status='AMBIGUOUS' if plausible else 'NONE', candidates=list(plausible.values()))
+
+
+def classify_name(group, locality, separator, location, variant):
+    name = variant.get('name', '')
+    parent = variant.get('parent') or {}
+    coord = variant.get('coord')
+    if not isinstance(name, str) or not isinstance(parent, dict):
+        return None, False, False
+    parent_name = parent.get('name')
+    if not isinstance(parent_name, str):
+        return None, False, False
+    places = {normalized(parent_name)}
+    if variant is not location:
+        canonical_parent = location.get('parent') or {}
+        alias_place, comma, stop_name = name.partition(',')
+        # A qualified same-DHID alias explicitly supplies an alternative
+        # locality spelling, provided EFA links it to the same parent place.
+        if (isinstance(canonical_parent, dict) and parent_name.strip()
+                and isinstance(canonical_parent.get('name'), str)
+                and normalized(canonical_parent['name']) == normalized(parent_name)
+                and comma and alias_place.strip() and stop_name.strip()):
+            places.add(normalized(alias_place))
+    meters = None
+    if (isinstance(coord, list) and len(coord) == 2
+            and all(isinstance(v, (int, float)) and math.isfinite(v) for v in coord)
+            and -90 <= coord[0] <= 90 and -180 <= coord[1] <= 180):
+        meters = distance(group['coord'], coord)
+    same_city = bool(separator) and normalized(locality) in places
+    same_name = normalized(name) == normalized(group['name'])
+    item = dict(dhid=location['id'], name=name, distance_m=meters, platforms=[])
+    return item, same_city, same_name
 
 
 def atomic_json(path, value):
