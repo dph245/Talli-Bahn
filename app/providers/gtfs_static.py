@@ -5,6 +5,7 @@ from zoneinfo import ZoneInfo
 from ..database import connect, validate_schema
 from ..models import Board, BoardKind, Departure, Stop
 from .search import SEARCH_NAME_SQL, like_pattern, search_terms
+from .nearby import NearbyCatalog
 
 BERLIN = ZoneInfo("Europe/Berlin")
 
@@ -33,6 +34,10 @@ class GTFSStaticProvider:
     def __init__(self, path: Path):
         validate_schema(path)
         self.path = path
+        self.nearby_catalog = NearbyCatalog(path)
+
+    def nearby(self, lat, lon):
+        return self.nearby_catalog.search(lat, lon)
 
     def search(self, query):
         terms = search_terms(query)

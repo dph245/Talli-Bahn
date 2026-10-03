@@ -85,12 +85,14 @@ def destination(value):
     return re.sub(r"\s*\| Haltestelle \d+$", "", value).strip()
 
 
-def match_predictions(events, departures, dhid, name):
+def match_predictions(events, departures, dhid, name, assigned=()):
     predictions = {}
     conflicts = set()
+    identities = [(dhid, name), *((a['dhid'], a['name']) for a in assigned)]
     for event in events:
         planned, estimated = event.departureTimePlanned, event.departureTimeEstimated
-        if (not (event.location.id == dhid or event.location.parent.id == dhid) or event.location.name != name
+        if (not any((event.location.id == stop or event.location.parent.id == stop)
+                    and event.location.name == stop_name for stop, stop_name in identities)
                 or estimated is None or planned.utcoffset() is None or estimated.utcoffset() is None
                 or not (event.isRealtimeControlled or "MONITORED" in event.realtimeStatus)):
             continue
@@ -194,7 +196,8 @@ class EFAFeed:
                         response.raise_for_status()
                         result = await asyncio.to_thread(self.mapping.save, group, response.json())
                     if result['status'] == 'UNIQUE':
-                        events = await self.refresh_stop(client, result['dhid'], result['name'], group['id'])
+                        options = {'assigned': result['assigned']} if result.get('assigned') else {}
+                        events = await self.refresh_stop(client, result['dhid'], result['name'], group['id'], **options)
                         if events is not None:
                             await asyncio.to_thread(self.mapping.record_platforms, group, result, events)
             except (httpx.HTTPError, OSError, ValueError, KeyError, TypeError, sqlite3.Error) as error:
@@ -202,7 +205,7 @@ class EFAFeed:
             finally:
                 self.checked[group['id']] = time.monotonic()
 
-    async def refresh_stop(self, client, dhid, name, group_id=None):
+    async def refresh_stop(self, client, dhid, name, group_id=None, *, assigned=()):
         try:
             group = await asyncio.to_thread(self.resolve_group, name, group_id) if group_id is not None else await asyncio.to_thread(self.resolve_group, name)
             if group is None:
@@ -217,7 +220,7 @@ class EFAFeed:
             # resolves active service dates (including exceptions and >24h GTFS times).
             _, departures = await asyncio.to_thread(
                 self.static.scheduled, group, "departures", datetime.now(timezone.utc))
-            predictions = match_predictions(events, departures, dhid, name)
+            predictions = match_predictions(events, departures, dhid, name, assigned)
             self.cached[group_id or dhid] = (time.monotonic(), predictions)
             return events
         except (httpx.HTTPError, ValidationError, ValueError, KeyError, sqlite3.Error) as error:

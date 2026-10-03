@@ -13,6 +13,15 @@ class Stop(BaseModel):
     name: str
 
 
+class NearbyStop(Stop):
+    distance_m: int
+
+
+class NearbyPosition(BaseModel):
+    lat: float = Field(ge=-90, le=90, allow_inf_nan=False)
+    lon: float = Field(ge=-180, le=180, allow_inf_nan=False)
+
+
 class ServiceAlert(BaseModel):
     id: str
     header: str

@@ -64,3 +64,7 @@ dialog::backdrop{background:#0009}#detail-close{float:right;margin-left:12px}#de
 .alerts-list{list-style:none;margin:0;padding:0 8px;max-height:min(240px,30vh);overflow:auto;overscroll-behavior:contain}
 .alerts-list li{padding:8px 0;border-top:1px solid var(--border);overflow-wrap:anywhere}
 .alerts-list p{margin:3px 0 0;color:var(--muted);white-space:pre-line}
+
+.search-box input{min-width:0}.nearby-button{flex-shrink:0;white-space:nowrap;border:1px solid var(--border);border-radius:2px;background:var(--panel);color:var(--text);font-size:11px;padding:3px 7px}
+.nearby-distance{display:block;font-size:11px;color:var(--muted)}
+@media(max-width:650px){.search-box{gap:7px}.search-box kbd{display:none}.nearby-button{padding:3px 5px}}

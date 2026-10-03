@@ -20,7 +20,10 @@ def prepare(database, archive, output, agency_names):
     coords = {}
     with ZipFile(archive) as z:
         for r in rows(z, 'stops.txt', True):
-            if r['stop_id'] in used and r['stop_name'] == stops[r['stop_id']]['stop_name']:
+            stop = stops.get(r['stop_id'])
+            if (stop and (r['stop_id'] in used or stop['parent_station'] in used)
+                    and r['stop_name'] == stop['stop_name']
+                    and r.get('parent_station', '') == (stop['parent_station'] or '')):
                 try:
                     coord = [float(r['stop_lat']), float(r['stop_lon'])]
                     if -90 <= coord[0] <= 90 and -180 <= coord[1] <= 180:
@@ -32,6 +35,10 @@ def prepare(database, archive, output, agency_names):
     for key, stop in stops.items():
         if stop['parent_station'] in groups:
             groups[stop['parent_station']]['stops'].append(key)
+            if key in coords:
+                groups[stop['parent_station']].setdefault('children', []).append(
+                    dict(id=key, name=stop['stop_name'], coord=coords[key],
+                         parent_station=stop['parent_station']))
     stat = database.stat()
     atomic_json(output, dict(database_signature=[stat.st_size,stat.st_mtime_ns],
                              archive=archive.name, agency_names=agency_names, groups=groups))

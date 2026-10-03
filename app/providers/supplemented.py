@@ -19,6 +19,9 @@ class SupplementedProvider:
     def search(self, query):
         return self.primary.search(query)
 
+    def nearby(self, lat, lon):
+        return self.primary.nearby(lat, lon)
+
     async def static_board(self, stop_id, kind, now):
         return await self.primary.static_board(stop_id, kind, now)
 

@@ -88,11 +88,12 @@ def test_catalog_builds_groups_from_routes_not_city_prefix(provider,tmp_path):
     from app.prepare_efa_mapping import prepare
     archive=tmp_path/'source.zip'; catalog=tmp_path/'catalog.json'
     with ZipFile(archive,'w') as z:
-        z.writestr('stops.txt','stop_id,stop_name,stop_lat,stop_lon\ns,Berlin Hbf,52,10\np,Berlin Hbf,52,10\n')
+        z.writestr('stops.txt','stop_id,stop_name,stop_lat,stop_lon,parent_station\ns,Berlin Hbf,52,10,\np,Berlin Hbf,52,10,s\n')
     result=prepare(provider.path,archive,catalog,['Test'])
     assert result['groups']==1
     group=json.loads(catalog.read_text())['groups']['s']
     assert set(group['stops'])=={'s','p'} and group['coord']==[52,10]
+    assert group['children'] == [dict(id='p', name='Berlin Hbf', coord=[52,10], parent_station='s')]
 
 
 def test_observed_platform_ids_survive_restart(provider,tmp_path):
@@ -193,3 +194,121 @@ def test_alias_mapping_reaches_departure_monitor(provider, tmp_path, monkeypatch
     assert len(calls) == 1
     assert calls[0]['name_dm'] == 'de:03102:3137'
     assert feed.cached['s'][1] == {}
+
+
+def harzburg_mapping():
+    # Names, IDs and coordinates observed in GTFS and the live EFA Stopfinder.
+    child = dict(id='437706', name='Bad Harzburg, Bahnhof',
+                 coord=[51.887554, 10.555276], parent_station='439072')
+    group = dict(id='439072', name='Bad Harzburg, Bahnhof Parkdeck',
+                 coord=[51.88719, 10.556399], stops=['439072', '454966', '437706', '30341'], children=[child])
+    primary = dict(id='de:03153:4948', type='stop', name=group['name'],
+                   parent={'name': 'Bad Harzburg'}, coord=[51.887192, 10.556399])
+    station = dict(id='de:03153:4946', type='stop', name=child['name'],
+                   parent={'name': 'Bad Harzburg'}, coord=[51.887869, 10.554953])
+    return group, {'locations': [dict(primary, assignedStops=[primary, station])]}
+
+
+def test_assigned_station_requires_concrete_child():
+    group, data = harzburg_mapping()
+    result = classify(group, data)
+    assert result['dhid'] == 'de:03153:4948'
+    assert result['assigned'][0]['dhid'] == 'de:03153:4946'
+    assert result['assigned'][0]['gtfs_stop_id'] == '437706'
+    assert result['assigned'][0]['distance_m'] < 100
+    group.pop('children')  # Old catalogs remain usable, but grant no extra DHIDs.
+    assert 'assigned' not in classify(group, data)
+
+
+@pytest.mark.parametrize('case', ['foreign_group', 'not_a_member', 'missing_coord', 'far_child',
+    'far_efa', 'wrong_city', 'wrong_name', 'platform', 'two_dhids', 'two_children',
+    'unrelated_location', 'malformed_children'])
+def test_assigned_station_rejects_unproven_or_ambiguous_mapping(case):
+    from copy import deepcopy
+    group, data = harzburg_mapping()
+    child = group['children'][0]
+    station = data['locations'][0]['assignedStops'][1]
+    if case == 'foreign_group': child['parent_station'] = 'other'
+    if case == 'not_a_member': group['stops'].remove(child['id'])
+    if case == 'missing_coord': child.pop('coord')
+    if case == 'far_child': child['coord'] = [53, 10]
+    if case == 'far_efa': station['coord'] = [53, 10]
+    if case == 'wrong_city': station['parent']['name'] = 'Other'
+    if case == 'wrong_name': station['name'] = 'Bad Harzburg, Bhf.'
+    if case == 'platform': station['id'] += ':1:922'
+    if case == 'two_dhids':
+        data['locations'][0]['assignedStops'].append(dict(station, id='de:03153:9999'))
+    if case == 'two_children':
+        group['children'].append(dict(child, id='454966'))
+    if case == 'unrelated_location':
+        unrelated = deepcopy(data['locations'][0])
+        unrelated.update(id='de:03153:9999', name='Other')
+        data['locations'][0].pop('assignedStops')
+        data['locations'].append(unrelated)
+    if case == 'malformed_children': group['children'] = None
+    result = classify(group, data)
+    assert result['status'] == 'UNIQUE'  # Primary mapping is unaffected.
+    assert 'assigned' not in result
+
+
+def test_439072_rb42_refresh_uses_verified_station_without_extra_request(provider, tmp_path, monkeypatch):
+    import sqlite3
+    from types import SimpleNamespace
+    from datetime import timedelta
+    from app.providers import vrb_efa
+    from test_transit import NOW
+    group, data = harzburg_mapping()
+    with sqlite3.connect(provider.path) as db:
+        db.execute("UPDATE stops SET stop_id='439072', stop_name=? WHERE stop_id='s'", (group['name'],))
+        db.execute("UPDATE stops SET stop_id='454966', parent_station='439072', stop_name='Bad Harzburg' WHERE stop_id='p'")
+        db.execute("UPDATE stop_times SET stop_id='454966' WHERE stop_id='p'")
+        db.execute("UPDATE routes SET route_short_name='RB42'")
+        db.execute("INSERT INTO stops VALUES ('437706','Bad Harzburg, Bahnhof','bad harzburg, bahnhof','439072','',0)")
+    monkeypatch.setattr(vrb_efa, 'datetime', SimpleNamespace(now=lambda tz: NOW))
+    feed = EFAFeed(provider)
+    feed.mapping = MappingStore(provider.path, tmp_path/'absent.json', tmp_path/'cache')
+    feed.mapping.save(group, data)
+    # Restart path must rebuild additional identities from the raw response.
+    feed.mapping = MappingStore(provider.path, tmp_path/'absent.json', tmp_path/'cache')
+    _, departures = provider.scheduled('439072', 'departures', NOW)
+    train = next(d for d in departures if d.trip_id == 't')
+    event = dict(location=dict(id='de:03153:4946:1:922', name='Bad Harzburg, Bahnhof',
+                              parent={'id':'de:03153:4946'}, properties={'platformName':'2'}),
+                 transportation={'number':'RB42'}, departureTimePlanned=train.scheduled.isoformat(),
+                 departureTimeEstimated=(train.scheduled + timedelta(minutes=2)).isoformat(),
+                 isRealtimeControlled=True)
+    calls = []
+    async def get(client, url, params):
+        calls.append(params)
+        return httpx.Response(200, json={'stopEvents':[event]}, request=httpx.Request('GET', url))
+    monkeypatch.setattr(httpx.AsyncClient, 'get', get)
+    asyncio.run(feed._refresh(group))
+    assert len(calls) == 1 and calls[0]['name_dm'] == 'de:03153:4948'
+    assert feed.cached['439072'][1][train.id] == vrb_efa.Prediction(train.scheduled + timedelta(minutes=2), '2')
+    parsed = vrb_efa.Event.model_validate(event)
+    assert not match_predictions([parsed], departures, 'de:03153:4948', group['name'])
+    assigned = feed.mapping.read(group)['assigned']
+    parsed.location.parent.id = 'de:03153:9999'
+    assert not match_predictions([parsed], departures, 'de:03153:4948', group['name'], assigned)
+
+
+def test_primary_and_assigned_predictions_keep_conflict_rejection():
+    from test_transit import journey, NOW
+    from test_vrb_efa import event
+    from datetime import timedelta
+    group, data = harzburg_mapping()
+    assigned = classify(group, data)['assigned']
+    primary = event(location={'id':'de:03153:4948', 'name':group['name']})
+    extra = event(location={'id':'de:03153:4946', 'name':'Bad Harzburg, Bahnhof'},
+                  departureTimeEstimated=NOW + timedelta(minutes=3))
+    assert match_predictions([primary, extra], [journey()], 'de:03153:4948', group['name'], assigned) == {}
+
+
+def test_shared_discovery_cache_does_not_share_child_authorization(provider, tmp_path):
+    group, data = harzburg_mapping()
+    store = MappingStore(provider.path, tmp_path/'absent.json', tmp_path/'cache')
+    store.save(group, data)
+    assert store.read(group)['assigned']
+    other = dict(group, id='different-group', stops=['different-group'])
+    assert store.key(other) == store.key(group)
+    assert 'assigned' not in store.read(other)

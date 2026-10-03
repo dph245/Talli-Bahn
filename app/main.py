@@ -7,7 +7,7 @@ from fastapi import FastAPI, HTTPException, Query
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 from starlette.concurrency import run_in_threadpool
-from .models import Board, Stop
+from .models import Board, Stop, NearbyStop, NearbyPosition
 from .providers.base import TransitProvider
 from .providers.factory import create_provider
 
@@ -33,6 +33,16 @@ def create_app(provider: TransitProvider | None = None):
     @application.get("/api/stops", response_model=list[Stop])
     async def stops(q: str = Query(default="", max_length=120)):
         return await run_in_threadpool(provider.search, q.strip())
+
+    @application.post("/api/stops/nearby", response_model=list[NearbyStop])
+    async def nearby(position: NearbyPosition):
+        search = getattr(provider, 'nearby', None)
+        if search is None:
+            raise HTTPException(503, 'Umgebungssuche nicht verfügbar')
+        try:
+            return await run_in_threadpool(search, position.lat, position.lon)
+        except ValueError:
+            raise HTTPException(503, 'Umgebungssuche nicht verfügbar') from None
 
     @application.get("/api/board", response_model=Board)
     async def board(stop_id: str = Query(min_length=1, max_length=300),

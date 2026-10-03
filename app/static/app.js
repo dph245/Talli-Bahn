@@ -29,25 +29,69 @@ function renderFavorites() {
 $('favorite').addEventListener('click', () => { if (!state.stop) return; const index = state.favorites.findIndex(stop => stop.id === state.stop.id); if (index >= 0) state.favorites.splice(index, 1); else state.favorites.push(state.stop); storage.set('favorites', state.favorites); renderFavorites(); });
 function resetFilters() { state.mode = 'all'; $('line').value = ''; $('direction').value = ''; updateModes(); }
 function selectStop(stop) {
+  stop = {id: stop.id, name: stop.name};
   ++searchVersion; searchController?.abort(); clearTimeout(searchTimer);
   state.stop = stop; state.board = null; state.stale = false;
   storage.set('last-stop', stop); $('station-name').textContent = stop.name;
   $('search').value = ''; $('search-results').hidden = true; $('search').blur();
   resetFilters(); renderFavorites(); render(); loadBoard();
 }
-async function getJSON(url, signal) { const response = await fetch(url, {signal, cache: 'no-store'}); if (!response.ok) { const error = new Error(`HTTP ${response.status}`); error.status = response.status; throw error; } return response.json(); }
-function searchMessage(message) { $('search-results').replaceChildren(element('div', 'search-message', message)); $('search-results').hidden = false; }
+async function getJSON(url, signal, options = {}) { const response = await fetch(url, {...options, signal, cache: 'no-store'}); if (!response.ok) { const error = new Error(`HTTP ${response.status}`); error.status = response.status; throw error; } return response.json(); }
+function searchMessage(message) { const node = element('div', 'search-message', message); node.setAttribute('role', 'status'); $('search-results').replaceChildren(node); $('search-results').hidden = false; }
+function showStops(stops, emptyMessage) {
+  $('search-results').replaceChildren();
+  if (!stops.length) searchMessage(emptyMessage);
+  for (const stop of stops) {
+    const button = element('button', '', stop.name);
+    if (Number.isFinite(stop.distance_m)) {
+      const label = stop.distance_m < 1000 ? `${stop.distance_m} m` : `${(stop.distance_m / 1000).toFixed(1).replace('.', ',')} km`;
+      button.append(element('span', 'nearby-distance', `ca. ${label} Luftlinie`));
+    }
+    button.addEventListener('click', () => selectStop(stop));
+    $('search-results').append(button);
+  }
+  $('search-results').hidden = false;
+}
 async function searchStops() {
   const query = $('search').value.trim(); const version = ++searchVersion;
   searchController?.abort(); searchController = new AbortController();
   searchMessage('Haltestellen werden gesucht …');
   try { const stops = await getJSON(`/api/stops?q=${encodeURIComponent(query)}`, searchController.signal); if (version !== searchVersion) return;
-    $('search-results').replaceChildren();
-    if (!stops.length) searchMessage('Keine Haltestelle gefunden. Versuche einen anderen Namen.');
-    for (const stop of stops) { const button = element('button', '', stop.name); button.addEventListener('click', () => selectStop(stop)); $('search-results').append(button); }
-    $('search-results').hidden = false;
+    showStops(stops, 'Keine Haltestelle gefunden. Versuche einen anderen Namen.');
   } catch (error) { if (error.name !== 'AbortError' && version === searchVersion) searchMessage('Suche nicht verfügbar. Bitte Verbindung prüfen.'); }
 }
+$('nearby').addEventListener('click', () => {
+  const version = ++searchVersion;
+  searchController?.abort(); clearTimeout(searchTimer);
+  const controller = new AbortController(); searchController = controller;
+  if (!window.isSecureContext || !navigator.geolocation) {
+    searchMessage('Standortabfrage nicht verfügbar. Bitte suche nach einem Haltestellennamen.'); return;
+  }
+  searchMessage('Standort wird ermittelt …');
+  navigator.geolocation.getCurrentPosition(async position => {
+    if (version !== searchVersion) return;
+    searchMessage('Haltestellen in deiner Nähe werden gesucht …');
+    const timeout = setTimeout(() => controller.abort(), 10000);
+    try {
+      const stops = await getJSON('/api/stops/nearby', controller.signal, {
+        method: 'POST', headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({lat: position.coords.latitude, lon: position.coords.longitude})
+      });
+      if (version !== searchVersion) return;
+      showStops(stops, 'Keine erfasste Haltestelle im Umkreis von 2 km. Bitte suche nach einem Namen.');
+    } catch (error) {
+      if (version === searchVersion) searchMessage('Umgebungssuche nicht verfügbar. Bitte suche nach einem Haltestellennamen.');
+    } finally { clearTimeout(timeout); }
+  }, error => {
+    if (version !== searchVersion) return;
+    searchMessage(error.code === 1 ? 'Standortzugriff abgelehnt. Du kannst weiter nach Namen suchen.'
+      : error.code === 3 ? 'Standortabfrage dauert zu lange. Bitte erneut versuchen oder nach Namen suchen.'
+      : 'Standort konnte nicht ermittelt werden. Bitte suche nach einem Namen.');
+  }, {enableHighAccuracy: false, timeout: 10000, maximumAge: 60000});
+});
+$('nearby').addEventListener('keydown', event => {
+  if (event.key === 'ArrowDown') { event.preventDefault(); $('search-results').querySelector('button')?.focus(); }
+});
 $('search').addEventListener('input', () => { ++searchVersion; searchController?.abort(); clearTimeout(searchTimer); searchTimer = setTimeout(searchStops, 220); });
 $('search').addEventListener('focus', searchStops);
 $('search').addEventListener('keydown', event => { if (event.key === 'ArrowDown') { event.preventDefault(); $('search-results').querySelector('button')?.focus(); } if (event.key === 'Enter') $('search-results').querySelector('button')?.click(); });

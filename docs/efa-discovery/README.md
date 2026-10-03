@@ -145,3 +145,42 @@ Tests: tests/test_efa_mapping.py, tests/test_vrb_efa.py.
 Dokumentation: README.md und dieses Verzeichnis einschließlich Rohantworten.
 Der lokale, reproduzierbare Katalog liegt unter data/vrb-stops.json.
 Die bereits bestehende Benutzeränderung an .gitignore wurde nicht verändert.
+
+## Zusätzliche EFA-Haltestellen innerhalb einer GTFS-Gruppe
+
+Der Kataloggenerator ergänzt `children` mit ID, vollständigem Namen, eigenen
+Koordinaten und `parent_station` jeder belegbaren direkten Unterhaltestelle.
+Name und Gruppenzugehörigkeit im GTFS-ZIP müssen zur SQLite passen. Die bisherige
+`stops`-Liste und die Gruppenidentitäten bleiben unverändert.
+
+Nur `assignedStops` einer bereits eindeutig bestätigten primären EFA-DHID werden
+als zusätzliche Kandidaten betrachtet. Jede weitere Haltestellen-DHID muss
+gegen eine konkrete Unterhaltestelle derselben GTFS-Gruppe die bestehende
+Klassifikation bestehen: vollständiger Name, Ort, gültige eigene Koordinaten,
+Distanz höchstens 100 m. Plattform-DHIDs sind keine Haltestellen-Kandidaten.
+Alle Kandidaten werden zusammen geprüft; mehrere exakt passende DHIDs für
+ dieselbe Unterhaltestelle bleiben mehrdeutig. Auch eine zusätzliche DHID, die
+mehreren Unterhaltestellen eindeutig zugeordnet werden könnte, wird nicht übernommen.
+Fehlende Nachweise verhindern nur die Erweiterung, nicht das primäre Mapping.
+
+Der Departure Monitor wird weiterhin nur für die primäre DHID angefragt.
+Bereits in dessen Antwort enthaltene Events zusätzlicher bestätigter DHIDs
+werden mit ihrem jeweils bestätigten Namen akzeptiert; Plattformen benötigen
+weiterhin die explizite `parent.id`. GTFS erzeugt allein die Fahrten derselben
+Gruppe. Linien-, Sollzeit-, Ziel- und Konfliktprüfung bleiben unverändert.
+Die Unterhaltestelle belegt die Mitgliedschaft der EFA-Haltestelle in der Gruppe;
+sie beschränkt die Fahrt nicht auf diese eine GTFS-Unterhalt-ID, da Bahn und Bus
+innerhalb derselben GTFS-Gruppe verschiedene Unterhalte verwenden können.
+Keine zusätzlichen Netzabfragen und kein pauschales Vertrauen in Nachbarhalte.
+
+Beispiel der untersuchten Daten (keine Sonderregel): Gruppe `439072`,
+`Bad Harzburg, Bahnhof Parkdeck`, hat primär `de:03153:4948`.
+Der konkrete Unterhalt `437706`, `Bad Harzburg, Bahnhof`, bestätigt
+`de:03153:4946` bei 41,45 m Abstand. Dadurch kann das bereits gelieferte RB42-Event
+zur GTFS-Bahn-Unterhaltestelle `454966` gematcht werden.
+
+**Für diese Erweiterung Katalog aus dem passenden GTFS-ZIP neu erzeugen und
+Dienst neu starten.** Alte Kataloge bleiben lesbar, erlauben aber ohne
+Unterhalt-Nachweise keine zusätzlichen DHIDs. Gespeicherte Discovery-Rohantworten
+werden mit dem aktuellen Katalog neu klassifiziert; Cachelöschen ist nicht nötig.
+Die vorhandenen Discovery-Cache-Schlüssel bleiben unverändert.

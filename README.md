@@ -121,6 +121,29 @@ Danach `docker compose up --build -d` bzw. Uvicorn mit `--env-file .env` neu sta
 
 ## Oberfläche
 
+„In meiner Nähe“ im Suchfeld fragt den Browserstandort ausschließlich nach
+einem bewussten Klick einmalig ab. Bis zu fünf Haltestellengruppen im Umkreis
+von zwei Kilometern erscheinen in der bestehenden Ergebnisliste, sortiert nach
+Luftlinie zur Gruppenposition. Die Auswahl öffnet die normale Tafel.
+Es gibt keine automatische Standortabfrage beim Start und keine laufende Ortung.
+Die Position wird nicht im Browser gespeichert; sie wird per POST an den eigenen
+Server gesendet, dort nur für die Suche verwendet und nicht in die Anfrage-URL
+geschrieben. Es werden keine Karten-, Geocoding- oder EFA-Dienste dafür aufgerufen.
+
+Voraussetzung ist der vorhandene, zur GTFS-Datenbank passende VRB-Katalog
+(`vrb-stops.json`, optional `VRB_EFA_CATALOG_PATH`). Die Funktion ist unabhängig
+von `VRB_EFA_ENABLED` und benötigt keine bestätigten EFA-Mappings. Ihre Abdeckung
+ist auf den Katalog beschränkt; die Namenssuche durchsucht weiterhin den gesamten
+GTFS-Bestand. Auch ältere Kataloge mit Gruppenkoordinaten sind geeignet.
+Bei fehlendem/veraltetem Katalog, verweigerter Standortfreigabe oder einem Timeout
+bleibt die Namenssuche verfügbar. Im Demo-Modus gibt es keine Umgebungstreffer.
+Browser-Geolocation benötigt HTTPS beziehungsweise localhost.
+
+Die lokale API `POST /api/stops/nearby` erwartet `{"lat":52.16,"lon":10.54}`
+und liefert Einträge mit `id`, `name` und `distance_m`. Koordinaten außerhalb der
+gültigen Bereiche werden abgelehnt. Die Antworten werden nicht gecacht.
+Browserprüfung mit simuliertem Standort: `PYTHONPATH=. python tests/browser_nearby.py`.
+
 - Haltestellensuche mit Namensteilen in beliebiger Reihenfolge (z. B. `hbf braun`), Umlauten oder `ae/oe/ue` und `Hbf`/`Hauptbahnhof`; exakte Treffer zuerst, maximal 20 Ergebnisse. Tastaturbedienung: `/` öffnet die Suche.
 - Favoriten, Design und Auto-Refresh-Einstellung in `localStorage`
 - Abfahrten/Ankünfte, alle Verkehrsmittel auf einer Tafel

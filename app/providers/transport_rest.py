@@ -85,6 +85,12 @@ class TransportRestProvider:
     def search(self, query):
         return self.primary.search(query)
 
+    def nearby(self, lat, lon):
+        search = getattr(self.primary, 'nearby', None)
+        if search is None:
+            raise ValueError('Umgebungssuche nicht verfügbar')
+        return search(lat, lon)
+
     async def static_board(self, stop_id, kind, now):
         return await self.primary.static_board(stop_id, kind, now)
 

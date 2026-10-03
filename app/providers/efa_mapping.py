@@ -20,7 +20,7 @@ def distance(a, b):
     return 6371000 * 2 * math.asin(min(1, math.sqrt(h)))
 
 
-def classify(group, payload):
+def classify(group, payload, *, include_assigned=True):
     if not isinstance(payload, dict):
         raise ValueError('Stopfinder-Antwort ist kein Objekt')
     locations = payload.get('locations')
@@ -53,8 +53,46 @@ def classify(group, payload):
             if same_city and same_name and meters is not None and meters <= 100:
                 exact[dhid] = item
     if len(exact) == 1:
-        return dict(status='UNIQUE', **next(iter(exact.values())))
+        result = dict(status='UNIQUE', **next(iter(exact.values())))
+        if include_assigned:
+            assigned = classify_assigned(group, locations, result['dhid'])
+            if assigned:
+                result['assigned'] = assigned
+        return result
     return dict(status='AMBIGUOUS' if plausible else 'NONE', candidates=list(plausible.values()))
+
+
+def classify_assigned(group, locations, primary_dhid):
+    # Only associations explicitly attached to the verified primary stop.
+    candidates = []
+    for loc in locations:
+        if not isinstance(loc, dict) or loc.get('id') != primary_dhid or loc.get('type') != 'stop':
+            continue
+        candidates.append(loc)
+        assigned = loc.get('assignedStops')
+        if isinstance(assigned, list):
+            candidates.extend(a for a in assigned if isinstance(a, dict))
+    # Match against all candidates together, so two DHIDs for one child cannot
+    # become two independent UNIQUE results. Count the primary DHID as well.
+    matches = {}
+    children = group.get('children', [])
+    if not isinstance(children, list):
+        return []
+    for child in children:
+        if (not isinstance(child, dict) or child.get('parent_station') != group['id']
+                or child.get('id') == group['id'] or child.get('id') not in group['stops']
+                or not isinstance(child.get('name'), str) or not valid_coord(child.get('coord'))):
+            continue
+        result = classify(child, {'locations': candidates}, include_assigned=False)
+        if result['status'] == 'UNIQUE' and result['dhid'] != primary_dhid:
+            matches.setdefault(result['dhid'], {})[child['id']] = dict(result, gtfs_stop_id=child['id'])
+    return [next(iter(children.values())) for children in matches.values() if len(children) == 1]
+
+
+def valid_coord(coord):
+    return (isinstance(coord, list) and len(coord) == 2
+            and all(isinstance(v, (int, float)) and not isinstance(v, bool) and math.isfinite(v) for v in coord)
+            and -90 <= coord[0] <= 90 and -180 <= coord[1] <= 180)
 
 
 def classify_name(group, locality, separator, location, variant):
@@ -78,9 +116,7 @@ def classify_name(group, locality, separator, location, variant):
                 and comma and alias_place.strip() and stop_name.strip()):
             places.add(normalized(alias_place))
     meters = None
-    if (isinstance(coord, list) and len(coord) == 2
-            and all(isinstance(v, (int, float)) and math.isfinite(v) for v in coord)
-            and -90 <= coord[0] <= 90 and -180 <= coord[1] <= 180):
+    if valid_coord(coord):
         meters = distance(group['coord'], coord)
     same_city = bool(separator) and normalized(locality) in places
     same_name = normalized(name) == normalized(group['name'])
@@ -133,28 +169,31 @@ class MappingStore:
 
     def read(self, group):
         key = self.key(group)
-        if key in self.loaded:
-            return self.loaded[key]
+        # Raw discovery is shared by name/coordinates; verified child membership
+        # belongs to the exact current GTFS group, not to that shared file key.
+        loaded_key = (key, json.dumps(group, sort_keys=True))
+        if loaded_key in self.loaded:
+            return self.loaded[loaded_key]
         path = self.cache / (key + '.json')
         if path.exists():
             data = json.loads(path.read_text())
             result = classify(group, data['response'])
             self.load_platforms(group, result)
-            self.loaded[key] = result
+            self.loaded[loaded_key] = result
             return result
         seed = next((s for s in self.seeds if normalized(s['name']) == normalized(group['name'])
                      and distance(s['coord'], group['coord']) <= 100), None)
         if seed:
             result = dict(status='UNIQUE', dhid=seed['dhid'], name=seed['name'], platforms=list(seed['platforms']))
             self.load_platforms(group, result)
-            self.loaded[key] = result
+            self.loaded[loaded_key] = result
             return result
         return None
 
     def save(self, group, payload):
         result = classify(group, payload)
         atomic_json(self.cache / (self.key(group) + '.json'), dict(group=group, response=payload, result=result))
-        self.loaded[self.key(group)] = result
+        self.loaded[(self.key(group), json.dumps(group, sort_keys=True))] = result
         return result
 
     def load_platforms(self, group, result):
