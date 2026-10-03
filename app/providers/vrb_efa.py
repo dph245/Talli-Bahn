@@ -9,7 +9,7 @@ import time
 from typing import NamedTuple
 
 import httpx
-from pydantic import BaseModel, Field, ValidationError
+from pydantic import BaseModel, Field, ValidationError, model_validator
 
 from ..database import connect
 from .efa_mapping import MappingStore, STOPFINDER, normalized
@@ -63,6 +63,21 @@ class Event(BaseModel):
 
 class Response(BaseModel):
     stopEvents: list[Event]
+
+    @model_validator(mode="before")
+    @classmethod
+    def empty_departure_monitor(cls, data):
+        # Observed rapidJSON empty result: BROKER/-4030, with stopEvents omitted.
+        # Keep missing/malformed events in other responses as validation failures.
+        if isinstance(data, dict) and "stopEvents" not in data:
+            messages = data.get("systemMessages")
+            if isinstance(messages, list) and messages and all(
+                isinstance(message, dict) and message.get("type") == "error"
+                and message.get("module") == "BROKER" and message.get("code") == -4030
+                for message in messages
+            ):
+                return {**data, "stopEvents": []}
+        return data
 
 
 def destination(value):

@@ -1,5 +1,8 @@
 # VRB-Mapping: vorhandene Evaluation und Umsetzung (03.10.2026)
 
+Gezielte Folgeuntersuchung: [ValidationError bei leerer EFA-Tafel und Vergleich
+mit Braunschweig Hbf](empty-departures.md), einschließlich gesicherter Rohantworten.
+
 ## Ausgangslage und übernommene Erkenntnisse
 
 Die ursprünglichen Rohdateien unter /tmp sind nach dem Reboot verloren. Folgende

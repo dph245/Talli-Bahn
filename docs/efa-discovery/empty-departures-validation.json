@@ -1,0 +1,59 @@
+{
+  "birkenweg": {
+    "captured_at": "2026-10-03T19:35:19.776658+02:00",
+    "request_url": "https://bsvg.efa.de/vrbstd_relaunch/XML_DM_REQUEST?name_dm=de%3A03158%3A1677&type_dm=stop&useRealtime=1&limit=20&outputFormat=rapidJSON&mode=direct",
+    "gtfs_group": {
+      "id": "629402",
+      "name": "Wolfenbüttel, Birkenweg",
+      "coord": [
+        52.167675,
+        10.554791
+      ],
+      "stops": [
+        "629402",
+        "413453",
+        "475632"
+      ]
+    },
+    "dhid": "de:03158:1677",
+    "events": 0,
+    "events_with_estimate": 0,
+    "matched_predictions": 0,
+    "gtfs_candidates_including_lookback": 5,
+    "gtfs_future_departures": 0,
+    "gtfs_future_departures_at_18_in_two_hour_window": 4
+  },
+  "braunschweig-hbf": {
+    "captured_at": "2026-10-03T19:36:01.815675+02:00",
+    "request_url": "https://bsvg.efa.de/vrbstd_relaunch/XML_DM_REQUEST?name_dm=de%3A03101%3A178&type_dm=stop&useRealtime=1&limit=20&outputFormat=rapidJSON&mode=direct",
+    "gtfs_group": {
+      "id": "203787",
+      "name": "Braunschweig, Hauptbahnhof",
+      "coord": [
+        52.252644,
+        10.539547
+      ],
+      "stops": [
+        "203787",
+        "562185",
+        "204620",
+        "374344",
+        "429474",
+        "667210"
+      ]
+    },
+    "dhid": "de:03101:178",
+    "events": 20,
+    "events_with_estimate": 19,
+    "matched_predictions": 17,
+    "gtfs_candidates_including_lookback": 246,
+    "gtfs_future_departures": 122,
+    "mapping_result": {
+      "status": "UNIQUE",
+      "dhid": "de:03101:178",
+      "name": "Braunschweig, Hauptbahnhof",
+      "distance_m": 0.22238985275380152,
+      "platforms": []
+    }
+  }
+}

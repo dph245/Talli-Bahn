@@ -1,5 +1,7 @@
 import asyncio
 from datetime import timedelta
+import json
+from pathlib import Path
 import sqlite3
 import time
 
@@ -11,6 +13,7 @@ from test_transit import NOW, journey, provider
 
 DHID = 'de:03158:1677:1:1'
 NAME = 'Wolfenbüttel, Birkenweg'
+DISCOVERY = Path(__file__).resolve().parents[1] / 'docs' / 'efa-discovery'
 
 
 def event(**changes):
@@ -188,6 +191,48 @@ def test_unresolved_group_preserves_fresh_cache(provider, monkeypatch):
         async with httpx.AsyncClient(transport=httpx.MockTransport(get)) as client:
             await feed.refresh_stop(client, DHID, NAME)
         assert feed.cached == before
+    asyncio.run(run())
+
+
+@pytest.mark.parametrize('case', ['recorded_empty', 'explicit_empty', 'missing',
+                                  'unknown_error', 'mixed_errors', 'null', 'invalid_event'])
+def test_refresh_empty_result_and_invalid_payloads(provider, monkeypatch, caplog, case):
+    raw = (DISCOVERY / 'birkenweg-after-service-board.json').read_bytes()
+    payload = json.loads(raw)
+    if case == 'explicit_empty':
+        payload = {'stopEvents': []}
+    elif case == 'missing':
+        payload = {}
+    elif case == 'unknown_error':
+        payload['systemMessages'][0]['code'] = -9999
+    elif case == 'mixed_errors':
+        payload['systemMessages'].append({'type': 'error', 'module': 'BROKER', 'code': -9999})
+    elif case == 'null':
+        payload['stopEvents'] = None
+    elif case == 'invalid_event':
+        payload['stopEvents'] = [{}]
+    feed = EFAFeed(provider)
+    monkeypatch.setattr(feed, 'resolve_group', lambda name, group_id: 's')
+    old = (time.monotonic() - 10, {'j': Prediction(NOW)})
+    feed.cached['629402'] = old
+
+    async def get(request):
+        assert dict(request.url.params) == dict(name_dm='de:03158:1677', type_dm='stop',
+            useRealtime='1', limit='20', outputFormat='rapidJSON', mode='direct')
+        return httpx.Response(200, content=raw if case == 'recorded_empty' else json.dumps(payload).encode())
+
+    async def run():
+        async with httpx.AsyncClient(transport=httpx.MockTransport(get)) as client:
+            events = await feed.refresh_stop(client, 'de:03158:1677', NAME, '629402')
+        if case in ('recorded_empty', 'explicit_empty'):
+            assert events == []
+            assert feed.cached['629402'][0] > old[0]
+            assert feed.cached['629402'][1] == {}
+            assert not caplog.records
+        else:
+            assert events is None
+            assert feed.cached['629402'] == old
+            assert 'ValidationError' in caplog.text
     asyncio.run(run())
 
 
