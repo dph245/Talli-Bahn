@@ -12,24 +12,23 @@ import httpx
 from pydantic import BaseModel, Field, ValidationError
 
 from ..database import connect
+from .efa_mapping import MappingStore, STOPFINDER, normalized
 
 log = logging.getLogger(__name__)
 URL = "https://bsvg.efa.de/vrbstd_relaunch/XML_DM_REQUEST"
 INTERVAL = 60
 MAX_AGE = 300
-# Only platforms observed in the probe. Names are checked against the loaded GTFS.
-STOPS = {
-    "de:03158:1677:1:1": "Wolfenbüttel, Birkenweg",
-    "de:03158:461:2:E": "Wolfenbüttel, Kornmarkt",
-    "de:03158:458:1:A": "Wolfenbüttel, Bahnhof",
-    "de:03101:255:1:B": "Braunschweig, Helmstedter Str.",
-}
+
+
+class ParentLocation(BaseModel):
+    id: str = ""
 
 
 class Location(BaseModel):
     id: str
     name: str
     properties: dict = Field(default_factory=dict)
+    parent: ParentLocation = Field(default_factory=ParentLocation)
 
     def platform(self):
         for key in ("platformName", "platform"):
@@ -76,7 +75,7 @@ def match_predictions(events, departures, dhid, name):
     conflicts = set()
     for event in events:
         planned, estimated = event.departureTimePlanned, event.departureTimeEstimated
-        if (event.location.id != dhid or event.location.name != name
+        if (not (event.location.id == dhid or event.location.parent.id == dhid) or event.location.name != name
                 or estimated is None or planned.utcoffset() is None or estimated.utcoffset() is None
                 or not (event.isRealtimeControlled or "MONITORED" in event.realtimeStatus)):
             continue
@@ -101,6 +100,11 @@ def match_predictions(events, departures, dhid, name):
 class EFAFeed:
     def __init__(self, static):
         self.static = static
+        try:
+            self.mapping = MappingStore(static.path)
+        except (OSError, ValueError, KeyError):
+            log.warning("VRB-EFA-Mapping nicht lesbar; verwende GTFS")
+            self.mapping = None
         self.cached = {}
         self.tasks = {}
         self.checked = {}
@@ -108,8 +112,13 @@ class EFAFeed:
         self.last_refresh = float("-inf")
         self.stopped = False
 
-    def resolve_group(self, name):
+    def resolve_group(self, name, group_id=None):
         with connect(self.static.path) as db:
+            if group_id is not None:
+                station = db.execute("SELECT stop_name, parent_station FROM stops WHERE stop_id=?", (group_id,)).fetchone()
+                if station and not station['parent_station'] and normalized(station['stop_name']) == normalized(name):
+                    return group_id
+                return None
             rows = db.execute("SELECT stop_id, parent_station FROM stops WHERE stop_name=?", (name,)).fetchall()
             roots = {r['parent_station'] or r['stop_id'] for r in rows}
             if len(roots) != 1:
@@ -134,37 +143,56 @@ class EFAFeed:
     def request_refresh(self, board):
         if self.stopped or board.kind != "departures":
             return
-        for dhid, name in STOPS.items():
-            if board.stop.name != name:
-                continue
-            task = self.tasks.get(dhid)
-            if task is not None and not task.done():
-                continue
-            cached_at = self.cached.get(dhid, (float("-inf"), {}))[0]
-            checked_at = self.checked.get(dhid, float("-inf"))
-            if time.monotonic() - max(cached_at, checked_at) < INTERVAL:
-                continue
-            # No await between checking and registering: concurrent board requests
-            # share one pending refresh per DHID on the server event loop.
-            self.tasks[dhid] = asyncio.create_task(
-                self._refresh(dhid, name), name="vrb-efa-refresh")
+        if self.mapping is None:
+            return
+        group = self.mapping.group(board.stop.id, board.stop.name)
+        if group is None:
+            return
+        key = group['id']
+        task = self.tasks.get(key)
+        if task is not None and not task.done():
+            return
+        cached_at = self.cached.get(key, (float("-inf"), {}))[0]
+        checked_at = self.checked.get(key, float("-inf"))
+        if time.monotonic() - max(cached_at, checked_at) < INTERVAL:
+            return
+        self.tasks[key] = asyncio.create_task(self._refresh(group), name="vrb-efa-refresh")
 
-    async def _refresh(self, dhid, name):
+    async def _get(self, client, url, params):
+        # Discovery and departure requests share the same sequential rate limiter.
+        await asyncio.sleep(max(0, 1.1 - (time.monotonic() - self.last_refresh)))
+        try:
+            return await client.get(url, params=params)
+        finally:
+            self.last_refresh = time.monotonic()
+
+    async def _refresh(self, group):
         async with self.lock:
-            await asyncio.sleep(max(0, 1.1 - (time.monotonic() - self.last_refresh)))
             try:
                 async with httpx.AsyncClient(timeout=8) as client:
-                    await self.refresh_stop(client, dhid, name)
+                    result = await asyncio.to_thread(self.mapping.read, group)
+                    if result is None:
+                        response = await self._get(client, STOPFINDER, {
+                            'name_sf': group['name'], 'type_sf': 'stop', 'locationServerActive': '1',
+                            'outputFormat': 'rapidJSON', 'coordOutputFormat': 'WGS84[dd.ddddd]',
+                        })
+                        response.raise_for_status()
+                        result = await asyncio.to_thread(self.mapping.save, group, response.json())
+                    if result['status'] == 'UNIQUE':
+                        events = await self.refresh_stop(client, result['dhid'], result['name'], group['id'])
+                        if events is not None:
+                            await asyncio.to_thread(self.mapping.record_platforms, group, result, events)
+            except (httpx.HTTPError, OSError, ValueError, KeyError, TypeError, sqlite3.Error) as error:
+                log.warning("VRB-EFA-Mapping fehlgeschlagen (%s); verwende GTFS", type(error).__name__)
             finally:
-                # Throttle failures too; only a later board request can retry.
-                self.checked[dhid] = self.last_refresh = time.monotonic()
+                self.checked[group['id']] = time.monotonic()
 
-    async def refresh_stop(self, client, dhid, name):
+    async def refresh_stop(self, client, dhid, name, group_id=None):
         try:
-            group = await asyncio.to_thread(self.resolve_group, name)
+            group = await asyncio.to_thread(self.resolve_group, name, group_id) if group_id is not None else await asyncio.to_thread(self.resolve_group, name)
             if group is None:
                 return
-            response = await client.get(URL, params={
+            response = await self._get(client, URL, {
                 "name_dm": dhid, "type_dm": "stop", "useRealtime": "1", "limit": "20",
                 "outputFormat": "rapidJSON", "mode": "direct",
             })
@@ -175,7 +203,8 @@ class EFAFeed:
             _, departures = await asyncio.to_thread(
                 self.static.scheduled, group, "departures", datetime.now(timezone.utc))
             predictions = match_predictions(events, departures, dhid, name)
-            self.cached[dhid] = (time.monotonic(), predictions)
+            self.cached[group_id or dhid] = (time.monotonic(), predictions)
+            return events
         except (httpx.HTTPError, ValidationError, ValueError, KeyError, sqlite3.Error) as error:
             log.warning("VRB-EFA-Aktualisierung fehlgeschlagen (%s); verwende frischen Cache oder GTFS", type(error).__name__)
 

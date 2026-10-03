@@ -20,4 +20,4 @@ build-backend = "setuptools.build_meta"
 include = ["app*"]
 
 [tool.setuptools.package-data]
-app = ["static/*"]
+app = ["static/*", "providers/efa_seed.json"]

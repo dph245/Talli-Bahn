@@ -1,0 +1,63 @@
+[
+  {
+    "name": "Braunschweig, Helmstedter Str.",
+    "coord": [
+      52.255135,
+      10.561906
+    ],
+    "dhid": "de:03101:255",
+    "platforms": [
+      "de:03101:255:1:B"
+    ]
+  },
+  {
+    "name": "Wolfenbüttel, Birkenweg",
+    "coord": [
+      52.167675,
+      10.554791
+    ],
+    "dhid": "de:03158:1677",
+    "platforms": [
+      "de:03158:1677:1:1"
+    ]
+  },
+  {
+    "name": "Wolfenbüttel, Kornmarkt",
+    "coord": [
+      52.162,
+      10.536088
+    ],
+    "dhid": "de:03158:461",
+    "platforms": [
+      "de:03158:461:2:E"
+    ]
+  },
+  {
+    "name": "Wolfenbüttel, Campestraße",
+    "coord": [
+      52.168907,
+      10.541838
+    ],
+    "dhid": "de:03158:460",
+    "platforms": [
+      "de:03158:460:1:A",
+      "de:03158:460:1:B"
+    ]
+  },
+  {
+    "name": "Wolfenbüttel, Bahnhof",
+    "coord": [
+      52.15922,
+      10.531723
+    ],
+    "dhid": "de:03158:458",
+    "platforms": [
+      "de:03158:458:1:A",
+      "de:03158:458:1:B",
+      "de:03158:458:1:C",
+      "de:03158:458:1:D",
+      "de:03158:458:2:1",
+      "de:03158:458:3:2"
+    ]
+  }
+]

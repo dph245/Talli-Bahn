@@ -93,6 +93,8 @@ def test_stop_group_requires_unique_exact_name(provider):
     feed = EFAFeed(provider)
     assert feed.resolve_group('Berlin Hbf') == 's'
     assert feed.resolve_group('berlin hbf') is None
+    assert feed.resolve_group('berlin hbf', 's') == 's'
+    assert feed.resolve_group('Wrong stop', 's') is None
     with sqlite3.connect(provider.path) as db:
         db.execute("INSERT INTO stops VALUES ('duplicate','Berlin Hbf','berlin hbf','','',1)")
     assert feed.resolve_group('Berlin Hbf') is None
@@ -131,18 +133,19 @@ def test_on_demand_refresh_is_nonblocking_deduplicated_and_throttled(provider, m
     from app.providers import vrb_efa
     clock = [1000.0]
     monkeypatch.setattr(vrb_efa, 'time', SimpleNamespace(monotonic=lambda: clock[0]))
-    monkeypatch.setattr(vrb_efa, 'STOPS', {DHID: 'Berlin Hbf'})
     feed = provider.efa = EFAFeed(provider)
+    monkeypatch.setattr(feed.mapping, "group", lambda stop_id, name: dict(id="s", name="Berlin Hbf", coord=[52, 10]) if stop_id == "s" else None)
+    monkeypatch.setattr(feed.mapping, "read", lambda group: dict(status="UNIQUE", dhid=DHID, name="Berlin Hbf"))
     calls = []
 
     async def run():
         entered, release = asyncio.Event(), asyncio.Event()
-        async def refresh(client, dhid, name):
+        async def refresh(client, dhid, name, group_id=None):
             calls.append(dhid)
             entered.set()
             await release.wait()  # An arbitrarily slow upstream must not hold the board.
             if len(calls) == 1:
-                feed.cached[dhid] = (clock[0], {})
+                feed.cached[group_id] = (clock[0], {})
             # The second attempt simulates a handled failure, leaving the cache unchanged.
         monkeypatch.setattr(feed, 'refresh_stop', refresh)
         await feed.start()
@@ -157,7 +160,7 @@ def test_on_demand_refresh_is_nonblocking_deduplicated_and_throttled(provider, m
         await asyncio.wait_for(entered.wait(), timeout=2)
         assert calls == [DHID]
         release.set()
-        await feed.tasks[DHID]
+        await feed.tasks['s']
         clock[0] += 59
         await provider.board('s', 'departures', NOW)
         assert calls == [DHID]
@@ -165,7 +168,7 @@ def test_on_demand_refresh_is_nonblocking_deduplicated_and_throttled(provider, m
         await asyncio.sleep(0)
         assert calls == [DHID]  # Aging alone never triggers polling.
         await provider.board('s', 'departures', NOW)
-        await feed.tasks[DHID]
+        await feed.tasks['s']
         assert calls == [DHID, DHID]
         await provider.board('s', 'departures', NOW)
         await asyncio.sleep(0)

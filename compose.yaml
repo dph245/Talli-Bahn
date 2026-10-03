@@ -9,6 +9,7 @@ services:
       GTFS_RT_URL: ${GTFS_RT_URL-https://realtime.gtfs.de/realtime-free.pb}
       GTFS_RT_TOKEN: ${GTFS_RT_TOKEN:-}
       GTFS_RT_INTERVAL_SECONDS: ${GTFS_RT_INTERVAL_SECONDS:-60}
+      VRB_EFA_CACHE_PATH: /app/efa-cache
       VRB_EFA_ENABLED: ${VRB_EFA_ENABLED:-true}
       TRANSPORT_REST_ENABLED: ${TRANSPORT_REST_ENABLED:-true}
       DB_RIS_ENABLED: ${DB_RIS_ENABLED:-false}
@@ -17,4 +18,8 @@ services:
       DB_RIS_MAPPING_PATH: ${DB_RIS_MAPPING_PATH:-data/ris-mapping.json}
     volumes:
       - ./data:/app/data:ro
+      - efa-cache:/app/efa-cache
     restart: unless-stopped
+
+volumes:
+  efa-cache:

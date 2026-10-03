@@ -242,49 +242,46 @@ Zuordnung und Fehlerbehandlung sind mit synthetischen API-Antworten getestet.
 
 ### Optionale VRB-EFA-Echtzeit
 
-`VRB_EFA_ENABLED=true` aktiviert die Ergänzung (Standard: `false`, auch in Compose).
-GTFS.de bestimmt weiterhin allein die Fahrtenliste. Unterstützt sind zunächst
-nur die untersuchten EFA-Steige: Wolfenbüttel Birkenweg (`de:03158:1677:1:1`),
-Kornmarkt (`de:03158:461:2:E`), Bahnhof (`de:03158:458:1:A`) und Braunschweig
-Helmstedter Straße (`de:03101:255:1:B`). Andere Steige und Ankünfte bleiben unverändert.
+`VRB_EFA_ENABLED=true` aktiviert die Ergänzung (direkter Start standardmäßig
+`false`; Compose aktiviert sie). GTFS bleibt alleinige Fahrplanquelle.
+Die frühere Beschränkung auf vier Steige wurde durch eine Mapping-Schicht ersetzt.
 
-Vor jedem Abruf muss der exakte Haltestellenname im geladenen GTFS genau eine
-Haltestellengruppe ergeben. Das Matching berücksichtigt sämtliche Unterhalte
-dieser Gruppe, aktive Betriebstage einschließlich Kalenderausnahmen und Zeiten
-über 24 Uhr, die Linie und den exakten Sollzeitpunkt. Mehrere Kandidaten werden
-nur bei genau einem passenden Ziel aufgelöst; beim Zielvergleich wird allein
-der beobachtete technische Zusatz `| Haltestelle <Zahl>` entfernt. Kein Fuzzy-Matching,
-keine Zeittoleranz und keine Identifikation über EFA-`tripCode`, `globalId` oder
-`AVMSTripID`. Die Zuordnung verwendet den vollständigen GTFS-Kandidatenbestand
-der Gruppe im bestehenden Zeitfenster, bevor Sichtbarkeit oder Echtzeit ihn verändern.
+Vorbereitung für das gesamte im Feed erfasste VRB-/Regionalbus-Angebot:
 
-Eine tatsächlich angefragte unterstützte Abfahrtstafel stößt bei fehlendem oder
-mindestens 60 Sekunden altem Cache einen Hintergrundrefresh an. Die Tafel wartet
-nicht auf EFA, sondern verwendet vorhandene Daten oder Plan. Gleichzeitig
-angefragte Tafeln teilen pro Serverprozess einen Cache und genau einen laufenden
-Refresh je DHID. Abrufe verschiedener Steige werden ebenfalls sequenziell mit
-mindestens 1,1 Sekunden Abstand ausgeführt. Ohne Tafelanfragen gibt es kein Polling;
-nach einem Fehler kann frühestens nach 60 Sekunden eine weitere Anfrage einen
-neuen Versuch auslösen. Ein nicht mehr eindeutig auflösbarer Haltestellenname
-löscht einen vorhandenen frischen Cache nicht vorzeitig.
+```bash
+.venv/bin/python -m app.prepare_efa_mapping latest_geamt.zip
+```
 
-Verwendet wird ausschließlich der untersuchte Minimalrequest mit `limit=20`,
-ohne vollständige Haltefolge. Der HTTP-Timeout beträgt acht Sekunden;
-Cache-Einträge verfallen nach fünf Minuten seit erfolgreichem Abruf. EFA liefert
-hier keinen belegten Prognose-Erstellzeitpunkt; das Cachealter beschreibt daher
-das Abrufalter. Für einen einzigen zentralen Abrufcache Talli wie in der
-mitgelieferten Konfiguration mit einem Prozess betreiben.
+Das erzeugt `data/vrb-stops.json` rein lokal aus SQLite und GTFS-Koordinaten.
+Nach einem neuen GTFS-Import erneut ausführen und den Server neu starten.
+Der aktuelle Katalog umfasst 4.639 Gruppen. Die Agency-Auswahl ist über
+`--agency` konfigurierbar; sie ist keine administrative Gebietsgrenze.
+Ohne Katalog bleiben zuvor verifizierte Mappings als Startdaten verfügbar.
 
-Nur überwachte Events mit gültiger geplanter und geschätzter Abfahrtszeit werden
-übernommen, auch bei identischen Zeiten. Bereits vorhandene GTFS-RT-Prognosen
-und Ausfälle haben Vorrang. EFA ergänzt keine Fahrten oder Ausfälle. Ein fehlender Steig wird ausschließlich
-aus dem bereits eindeutig gematchten Event ergänzt: `location.properties.platformName`
-hat Vorrang vor `location.properties.platform`. Bestehende Plattformwerte und
-`scheduled_platform` bleiben unverändert; fehlende EFA-Werte bleiben leer.
-Fehlende, mehrdeutige oder widersprüchliche Prognosen werden ignoriert. Bei
-Abruf-/JSON-Fehlern bleibt höchstens der noch frische Cache nutzbar, danach die
-bisherige GTFS-/GTFS-RT-Tafel. `realtime=false` bleibt rein statisch.
+Eine tatsächlich angefragte Gruppe wird bei Bedarf einmal über den EFA-Stopfinder
+aufgelöst. Nur gleicher Ort, gleicher Name und höchstens 100 m Abstand ergeben
+bei genau einem Kandidaten `UNIQUE`. Abkürzungen/Mast-Zusätze bleiben unbestätigt.
+Rohantworten einschließlich negativer Ergebnisse werden persistent gespeichert.
+Compose verwendet dafür das Volume `efa-cache`; der GTFS-Datenmount bleibt read-only.
+Bei direktem Start sind `VRB_EFA_CATALOG_PATH` und `VRB_EFA_CACHE_PATH` optional
+konfigurierbar (Standard: neben der GTFS-SQLite).
 
-Die Probe ergab 80 plausible Matches an vier Haltestellen, jedoch keine Garantie
-für andere Tage, Nachtverkehr, Umleitungen oder Fahrplanwechsel. Das Limit von
-20 Events und die Beschränkung auf vier Steige begrenzen die Abdeckung bewusst.
+Tafelanfragen warten nicht auf EFA. Ein gemeinsamer Hintergrundworker führt
+Discovery und Abfahrtsabfragen sequenziell mit mindestens 1,1 s Abstand aus;
+gleichzeitige Anfragen derselben Gruppe teilen einen Task. Der Echtzeitcache
+wird bei tatsächlicher Nutzung frühestens nach 60 s erneuert und verfällt nach
+fünf Minuten. Kein permanentes Polling. Ein Prozess wie in Compose vorgesehen.
+
+Der Departure Monitor erhält die eindeutig zugeordnete Haltestellen-DHID und
+liefert auch Events ihrer explizit zugeordneten Steige. Das Fahrtenmatching bleibt
+bei aktiven GTFS-Betriebstagen, Linie und exakter Sollzeit; bei Mehrdeutigkeit
+muss der haltestellenspezifische Zielvergleich genau einen Kandidaten ergeben.
+Keine Zeittoleranz, kein Fuzzy-Matching, keine Gleichsetzung von EFA- und GTFS-Fahrt-IDs.
+GTFS-RT-Prognosen und vorhandene Steigwerte behalten Vorrang. Fehlende Plattformen
+können aus demselben gematchten Event ergänzt werden (`platformName`, sonst `platform`).
+Keine zusätzlichen Fahrten, keine Änderung an Ankünften oder `realtime=false`.
+
+Methodik, bekannte Grenzen, bisherige Evaluation und die gezielt gespeicherten
+Antworten für Bahnhof/Campestraße stehen in [docs/efa-discovery](docs/efa-discovery/README.md).
+Die bekannte 96-Haltestellen-Evaluation wurde nicht wiederholt. Das EFA-Limit
+von 20 Events begrenzt weiterhin die Echtzeitabdeckung großer Haltestellen.

@@ -1,0 +1,68 @@
+{
+  "campestrasse": {
+    "gtfs_group": {
+      "id": "46207",
+      "name": "Wolfenbüttel, Campestraße",
+      "coord": [
+        52.168907,
+        10.541838
+      ],
+      "stops": [
+        "46207",
+        "17588",
+        "57076"
+      ]
+    },
+    "mapping": {
+      "status": "UNIQUE",
+      "dhid": "de:03158:460",
+      "name": "Wolfenbüttel, Campestraße",
+      "distance_m": 0.11119492708422385,
+      "platforms": []
+    },
+    "events": 20,
+    "realtime": 18,
+    "matched_realtime": 18,
+    "platforms": [
+      "de:03158:460:1:A",
+      "de:03158:460:1:B"
+    ]
+  },
+  "bahnhof": {
+    "gtfs_group": {
+      "id": "204963",
+      "name": "Wolfenbüttel, Bahnhof",
+      "coord": [
+        52.15922,
+        10.531723
+      ],
+      "stops": [
+        "204963",
+        "612924",
+        "229267",
+        "390138",
+        "445025",
+        "543013"
+      ]
+    },
+    "mapping": {
+      "status": "UNIQUE",
+      "dhid": "de:03158:458",
+      "name": "Wolfenbüttel, Bahnhof",
+      "platforms": [
+        "de:03158:458:1:A"
+      ]
+    },
+    "events": 20,
+    "realtime": 17,
+    "matched_realtime": 17,
+    "platforms": [
+      "de:03158:458:1:A",
+      "de:03158:458:1:B",
+      "de:03158:458:1:C",
+      "de:03158:458:1:D",
+      "de:03158:458:2:1",
+      "de:03158:458:3:2"
+    ]
+  }
+}
