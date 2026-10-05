@@ -68,3 +68,13 @@ dialog::backdrop{background:#0009}#detail-close{float:right;margin-left:12px}#de
 .search-box input{min-width:0}.nearby-button{flex-shrink:0;white-space:nowrap;border:1px solid var(--border);border-radius:2px;background:var(--panel);color:var(--text);font-size:11px;padding:3px 7px}
 .nearby-distance{display:block;font-size:11px;color:var(--muted)}
 @media(max-width:650px){.search-box{gap:7px}.search-box kbd{display:none}.nearby-button{padding:3px 5px}}
+
+/* Attribution stays on its own page; the board only links to it. */
+.page-footer a{text-decoration:underline;text-underline-offset:3px}
+main.data-sources{max-width:780px;margin:36px auto;padding:0 24px}
+.data-sources h1{font-size:clamp(26px,5vw,36px);line-height:1.2;margin:24px 0 32px}
+.data-sources section{border-top:1px solid var(--border);padding:22px 0 12px}
+.data-sources h2{font-size:19px}
+.data-sources p{line-height:1.7;overflow-wrap:anywhere}
+.data-sources a{text-decoration:underline;text-underline-offset:3px}
+.data-sources .back-link,.data-sources .source-note{color:var(--muted)}

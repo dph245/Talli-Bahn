@@ -4,12 +4,13 @@ from pathlib import Path
 from zoneinfo import ZoneInfo
 from typing import Literal
 from fastapi import FastAPI, HTTPException, Query
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, HTMLResponse
 from fastapi.staticfiles import StaticFiles
 from starlette.concurrency import run_in_threadpool
 from .models import Board, Stop, NearbyStop, NearbyPosition
 from .providers.base import TransitProvider
 from .providers.factory import create_provider
+from .data_sources import source_sections
 
 STATIC = Path(__file__).parent / "static"
 
@@ -92,6 +93,12 @@ def create_app(provider: TransitProvider | None = None):
     @application.get("/", include_in_schema=False)
     def index():
         return FileResponse(STATIC / "index.html")
+
+    @application.get("/datenquellen", response_class=HTMLResponse, include_in_schema=False)
+    def data_sources():
+        page = (STATIC / "data-sources.html").read_text()
+        return HTMLResponse(page.replace("<!--DATA_SOURCES-->", source_sections(provider)),
+                            headers={"Cache-Control": "no-store"})
 
     @application.get("/sw.js", include_in_schema=False)
     def worker():

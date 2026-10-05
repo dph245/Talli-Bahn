@@ -357,3 +357,11 @@ Hintergrund und Belege:
 [Favoriten und Bad Harzburg](docs/favorites-and-stops-2026-10-05/README.md).
 Regressionen: `tests/test_favorite_versions.py` und
 `PYTHONPATH=. .venv/bin/python tests/browser_favorites.py`.
+
+### Datenquellen & Lizenzen
+
+Der Footer verlinkt auf `/datenquellen`. Dort stehen die Quellen- und
+Lizenzhinweise zentral, passend zu den aktivierten Datenprovidern.
+Belege und offene Punkte zur EFA-/API-Nachnutzung:
+[Quellenprüfung](docs/data-sources.md). Bei Änderungen der Datenanbieter oder
+Aktivierung weiterer Quellen diese Angaben mitprüfen.
