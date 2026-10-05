@@ -62,6 +62,10 @@ def import_feed(archive_path: Path, db_path: Path):
             db.executemany("INSERT INTO trips VALUES (?,?,?,?,?)", (
                 (r["trip_id"], r["route_id"], r["service_id"], r.get("trip_headsign", ""), int(r["direction_id"]) if r.get("direction_id") else None)
                 for r in rows(z, "trips.txt", True)))
+            # Optional passenger-facing train identity; older v2 imports remain readable.
+            db.executemany("INSERT INTO trip_names VALUES (?,?)", (
+                (r["trip_id"], r["trip_short_name"].strip())
+                for r in rows(z, "trips.txt", True) if r.get("trip_short_name", "").strip()))
             db.executemany("INSERT INTO stop_times VALUES (?,?,?,?,?,?,?,?)", (
                 (r["trip_id"], r["stop_id"], int(r["stop_sequence"]), seconds(r.get("arrival_time")),
                  seconds(r.get("departure_time")), r.get("stop_headsign", ""),

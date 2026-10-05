@@ -162,7 +162,10 @@ def parse_snapshot(content, source_url=DEFAULT_FEED_URL):
             update = entity.trip_update
             if update.timestamp and not -60 <= time.time() - update.timestamp <= MAX_AGE:
                 continue
-            snapshot.updates[(update.trip.trip_id, update.trip.start_date)] = update
+            key = (update.trip.trip_id, update.trip.start_date)
+            if key in snapshot.updates and snapshot.updates[key] != update:
+                raise ValueError("Mehrdeutige TripUpdates für dieselbe Fahrt und denselben Betriebstag")
+            snapshot.updates[key] = update
         if entity.HasField("alert") and not is_provenance_alert(entity.alert, source_url):
             snapshot.alerts.append((entity.id, entity.alert))
     snapshot.alert_index = index_alerts(snapshot.alerts)
@@ -177,6 +180,11 @@ def apply_update(departure: Departure, kind: BoardKind, updates: dict):
         return
     if update.timestamp and not -60 <= time.time() - update.timestamp <= MAX_AGE:
         return
+    if update.trip.route_id and update.trip.route_id != departure.route_id:
+        return
+    if (update.trip.HasField("direction_id") and departure.direction_id is not None
+            and update.trip.direction_id != departure.direction_id):
+        return
     if update.trip.schedule_relationship == gtfs.TripDescriptor.CANCELED:
         departure.cancelled = True
         departure.source = "GTFS + GTFS-Realtime"
@@ -188,6 +196,9 @@ def apply_update(departure: Departure, kind: BoardKind, updates: dict):
         matches = stop.stop_sequence == departure.sequence if stop.HasField("stop_sequence") else stop.stop_id == departure.stop_id
         if not matches:
             continue
+        # Sequence locates an event; an explicit contradictory stop ID vetoes it.
+        if stop.stop_id and stop.stop_id != departure.stop_id:
+            return
         if stop.schedule_relationship == gtfs.TripUpdate.StopTimeUpdate.SKIPPED:
             departure.cancelled = True
             departure.source = "GTFS + GTFS-Realtime"
@@ -234,6 +245,8 @@ def selector_matches(selector, departure: Departure | None, stop_ids: set[str]) 
     if selector.route_id and (departure is None or selector.route_id != departure.route_id):
         return False
     if selector.HasField("route_type") and (departure is None or selector.route_type != departure.route_type):
+        return False
+    if selector.HasField("direction_id") and (departure is None or selector.direction_id != departure.direction_id):
         return False
     if selector.HasField("trip"):
         if departure is None:

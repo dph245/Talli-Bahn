@@ -3,7 +3,8 @@ import asyncio
 from pathlib import Path
 from ..models import Board
 from .gtfs_static import GTFSStaticProvider
-from .gtfs_realtime import RealtimeFeed, apply_update, apply_alerts, matching_alert_entries
+from .gtfs_realtime import RealtimeFeed, apply_update, apply_alerts, matching_alert_entries, Snapshot
+from .realtime_identity import IdentityGuard
 from .time_window import visible_departures
 from .vrb_efa import EFAFeed
 
@@ -12,6 +13,7 @@ class GTFSProvider(GTFSStaticProvider):
     def __init__(self, path: Path, realtime: RealtimeFeed, efa_enabled=False):
         super().__init__(path)
         self.realtime = realtime
+        self.identity_guard = IdentityGuard(path)
         self.efa = EFAFeed(self) if efa_enabled else None
 
     async def start(self):
@@ -33,6 +35,8 @@ class GTFSProvider(GTFSStaticProvider):
         return board
 
     def enrich(self, station, departures, snapshot, realtime_status, stop_id, kind, now):
+        if not self.identity_guard.accepts(snapshot):
+            snapshot, realtime_status = Snapshot(), "unavailable"
         for departure in departures:
             apply_update(departure, kind, snapshot.updates)
         alerts = apply_alerts(departures, matching_alert_entries(snapshot, departures, stop_id), stop_id, now)

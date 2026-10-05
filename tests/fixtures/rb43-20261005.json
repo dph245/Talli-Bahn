@@ -1,0 +1,101 @@
+{
+  "trip": {
+    "trip_id": "1029743",
+    "route_id": "18234",
+    "service_id": "269",
+    "trip_headsign": "",
+    "direction_id": null,
+    "route_short_name": "RB43",
+    "route_type": 2,
+    "agency_id": "211",
+    "agency_name": "erixx"
+  },
+  "stops": [
+    {
+      "trip_id": "1029743",
+      "stop_id": "562185",
+      "stop_sequence": 0,
+      "arrival": 37440,
+      "departure": 37440,
+      "stop_headsign": "Goslar",
+      "pickup_type": 0,
+      "drop_off_type": 0,
+      "stop_name": "Braunschweig Hbf"
+    },
+    {
+      "trip_id": "1029743",
+      "stop_id": "612924",
+      "stop_sequence": 1,
+      "arrival": 37920,
+      "departure": 37980,
+      "stop_headsign": "Goslar",
+      "pickup_type": 0,
+      "drop_off_type": 0,
+      "stop_name": "Wolfenbüttel"
+    },
+    {
+      "trip_id": "1029743",
+      "stop_id": "520538",
+      "stop_sequence": 2,
+      "arrival": 38520,
+      "departure": 38580,
+      "stop_headsign": "Goslar",
+      "pickup_type": 0,
+      "drop_off_type": 0,
+      "stop_name": "Börßum"
+    },
+    {
+      "trip_id": "1029743",
+      "stop_id": "378001",
+      "stop_sequence": 3,
+      "arrival": 38820,
+      "departure": 38820,
+      "stop_headsign": "Goslar",
+      "pickup_type": 0,
+      "drop_off_type": 0,
+      "stop_name": "Schladen(Harz)"
+    },
+    {
+      "trip_id": "1029743",
+      "stop_id": "214836",
+      "stop_sequence": 4,
+      "arrival": 39420,
+      "departure": 39600,
+      "stop_headsign": "Goslar",
+      "pickup_type": 0,
+      "drop_off_type": 0,
+      "stop_name": "Vienenburg"
+    },
+    {
+      "trip_id": "1029743",
+      "stop_id": "113006",
+      "stop_sequence": 5,
+      "arrival": 40020,
+      "departure": 40020,
+      "stop_headsign": "Goslar",
+      "pickup_type": 0,
+      "drop_off_type": 0,
+      "stop_name": "Oker"
+    },
+    {
+      "trip_id": "1029743",
+      "stop_id": "414153",
+      "stop_sequence": 6,
+      "arrival": 40320,
+      "departure": 40320,
+      "stop_headsign": "Goslar",
+      "pickup_type": 0,
+      "drop_off_type": 0,
+      "stop_name": "Goslar"
+    }
+  ],
+  "service_date": "20261005",
+  "reported_train_number": "81561",
+  "note": "Train number and observed realtime times are user observations, not fields in this static feed. Morning RT entity not retained.",
+  "reported_realtime": {
+    "1": "10:54",
+    "2": "10:55",
+    "4": "10:57",
+    "5": "10:58"
+  }
+}

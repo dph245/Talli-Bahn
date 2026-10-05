@@ -308,3 +308,19 @@ Methodik, bekannte Grenzen, bisherige Evaluation und die gezielt gespeicherten
 Antworten für Bahnhof/Campestraße stehen in [docs/efa-discovery](docs/efa-discovery/README.md).
 Die bekannte 96-Haltestellen-Evaluation wurde nicht wiederholt. Das EFA-Limit
 von 20 Events begrenzt weiterhin die Echtzeitabdeckung großer Haltestellen.
+
+### Prüfung der Realtime-Identitäten (05.10.2026)
+
+Der [RB43-Feldtest und die Untersuchung](docs/rb43-2026-10-05/README.md) belegen
+inkompatible Fahrt-IDs zwischen lokalem Import und aktuellem GTFS-RT-Snapshot.
+Talli prüft deshalb vor der Übernahme eines Snapshots dessen Fahrtverläufe,
+optionale Route/Richtung und rekonstruierbare Sollzeiten gegen GTFS. Bei einem
+Widerspruch werden Prognosen, Ausfälle und Alerts dieses Snapshots gemeinsam
+verworfen und der konkrete Konflikt geloggt. Fahrplan und unabhängige EFA-Daten
+bleiben verfügbar. Statischer Import und Realtime-Quelle müssen zusammenpassen;
+ein Neuimport aus dem alten ZIP behebt neu belegte IDs nicht.
+
+Optionales numerisches `trip_short_name` bei Bahnfahrten wird bei neuen Imports
+bewahrt und mit EFA-`trainNumber` verglichen. Unterschiedliche vorhandene Nummern
+verhindern einen Match; fehlt eine Nummer, gilt der bisherige Fallback. Bestehende
+Datenbanken bleiben lesbar. Der vorhandene Basisfeed enthält keine Zugnummern.

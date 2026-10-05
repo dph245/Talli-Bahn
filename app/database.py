@@ -13,6 +13,7 @@ CREATE INDEX stops_search ON stops(search_name);
 CREATE TABLE agencies (agency_id TEXT PRIMARY KEY, agency_name TEXT NOT NULL);
 CREATE TABLE routes (route_id TEXT PRIMARY KEY, route_short_name TEXT, route_long_name TEXT, route_type INTEGER, agency_id TEXT);
 CREATE TABLE trips (trip_id TEXT PRIMARY KEY, route_id TEXT, service_id TEXT, trip_headsign TEXT, direction_id INTEGER);
+CREATE TABLE trip_names (trip_id TEXT PRIMARY KEY, trip_short_name TEXT NOT NULL);
 CREATE TABLE stop_times (trip_id TEXT, stop_id TEXT, stop_sequence INTEGER, arrival INTEGER,
  departure INTEGER, stop_headsign TEXT, pickup_type INTEGER, drop_off_type INTEGER);
 CREATE INDEX times_stop_departure ON stop_times(stop_id, departure);

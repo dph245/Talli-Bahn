@@ -1,5 +1,6 @@
 from datetime import datetime
 import math
+import re
 import unicodedata
 from typing import Literal
 from pydantic import BaseModel, Field, computed_field
@@ -35,6 +36,13 @@ def alert_content_key(alert: ServiceAlert):
                  for value in (alert.header, alert.description))
 
 
+def train_number(value):
+    # Do not turn line names, trip codes or opaque provider IDs into train numbers.
+    if not isinstance(value, str) or not re.fullmatch(r"[0-9]+", value.strip()):
+        return None
+    return value.strip().lstrip("0") or "0"
+
+
 class Departure(BaseModel):
     """Source-independent stop event, also used for arrivals.
 
@@ -45,6 +53,7 @@ class Departure(BaseModel):
     id: str
     stop_id: str
     trip_id: str = Field(default="", exclude=True)
+    train_number: str | None = Field(default=None, exclude=True)
     sequence: int = Field(default=0, exclude=True)
     service_date: str = Field(default="", exclude=True)
     route_id: str = Field(default="", exclude=True)

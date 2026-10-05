@@ -288,3 +288,25 @@ def test_platform_is_not_borrowed_from_other_or_conflicting_events():
     assert match_predictions([own, conflicting], [d], DHID, NAME) == {d.id: Prediction(NOW)}
     duplicate = d.model_copy(update={'id': 'other', 'trip_id': 'other'})
     assert match_predictions([conflicting], [d, duplicate], DHID, NAME) == {}
+
+
+@pytest.mark.parametrize('gtfs_number,efa_number,matched', [
+    ('81561', '81561', True), ('81561', '81563', False),
+    (None, '81561', True), ('81561', None, True), (None, None, True),
+])
+def test_train_number_veto_and_missing_number_fallback(gtfs_number, efa_number, matched):
+    d = journey().model_copy(update={'train_number': gtfs_number})
+    e = event(transportation={'number': d.line, 'properties': {'trainNumber': efa_number}})
+    result = match_predictions([e], [d], DHID, NAME)
+    assert bool(result) is matched
+
+
+def test_train_number_disambiguates_but_does_not_bypass_stop_line_or_time():
+    correct = journey().model_copy(update={'train_number': '81561'})
+    other = correct.model_copy(update={'id': 'other', 'train_number': '81563'})
+    e = event(transportation={'number': correct.line, 'properties': {'trainNumber': '81561'}})
+    assert list(match_predictions([e], [correct, other], DHID, NAME)) == ['j']
+    for wrong in [correct.model_copy(update={'line': 'RB99'}),
+                  correct.model_copy(update={'scheduled': correct.scheduled + timedelta(seconds=1)})]:
+        assert not match_predictions([e], [wrong], DHID, NAME)
+    assert not match_predictions([e], [correct], 'other-stop', NAME)

@@ -3,7 +3,7 @@ from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from zoneinfo import ZoneInfo
 from ..database import connect, validate_schema
-from ..models import Board, BoardKind, Departure, Stop
+from ..models import Board, BoardKind, Departure, Stop, train_number
 from .search import SEARCH_NAME_SQL, like_pattern, search_terms
 from .nearby import NearbyCatalog
 
@@ -63,6 +63,9 @@ class GTFSStaticProvider:
             placeholders = ",".join("?" for _ in ids)
             maximum = int(db.execute("SELECT value FROM metadata WHERE key='max_time'").fetchone()[0])
             journeys = []
+            has_names = db.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name='trip_names'").fetchone()
+            train_name = ("(SELECT trip_short_name FROM trip_names n WHERE n.trip_id=t.trip_id)"
+                          if has_names else "NULL")
             time_column = "departure" if kind == "departures" else "arrival"
             boarding_column = "pickup_type" if kind == "departures" else "drop_off_type"
             for offset in range(-(maximum // 86400 + 1), 2):
@@ -87,7 +90,7 @@ class GTFSStaticProvider:
                     UNION SELECT service_id FROM calendar_dates WHERE date=? AND exception_type=1
                     EXCEPT SELECT service_id FROM calendar_dates WHERE date=? AND exception_type=2
                 ) SELECT st.*, t.trip_headsign, r.route_short_name, r.route_long_name, r.route_type, r.route_id, r.agency_id,
-                    a.agency_name, t.direction_id,
+                    a.agency_name, t.direction_id, {train_name} AS trip_short_name,
                     s.platform_code,
                     {destination_sql} AS destination
                 FROM stop_times st JOIN trips t ON t.trip_id=st.trip_id
@@ -101,6 +104,7 @@ class GTFSStaticProvider:
                         stop_id=r["stop_id"], sequence=r["stop_sequence"], service_date=date,
                         route_id=r["route_id"], agency_id=r["agency_id"], route_type=r["route_type"],
                         direction_id=r["direction_id"], operator=r["agency_name"],
+                        train_number=train_number(r["trip_short_name"]) if mode_for(r["route_type"]) == "rail" else None,
                         line=r["route_short_name"] or r["route_long_name"] or "–",
                         mode=mode_for(r["route_type"]), destination=destination or "Unbekannt",
                         scheduled=(start + timedelta(seconds=r[time_column])).astimezone(BERLIN),

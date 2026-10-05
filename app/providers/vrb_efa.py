@@ -11,6 +11,7 @@ from typing import NamedTuple
 import httpx
 from pydantic import BaseModel, Field, ValidationError, model_validator
 
+from ..models import train_number
 from ..database import connect
 from .efa_mapping import MappingStore, STOPFINDER, normalized
 
@@ -49,6 +50,7 @@ class Destination(BaseModel):
 
 class Transportation(BaseModel):
     number: str
+    properties: dict = Field(default_factory=dict)
     destination: Destination = Field(default_factory=Destination)
 
 
@@ -98,6 +100,12 @@ def match_predictions(events, departures, dhid, name, assigned=()):
             continue
         candidates = [d for d in departures if d.line == event.transportation.number
                       and d.scheduled.timestamp() == planned.timestamp()]
+        number = train_number(event.transportation.properties.get("trainNumber"))
+        if number:
+            candidates = [d for d in candidates if not d.train_number or d.train_number == number]
+            exact = [d for d in candidates if d.train_number == number]
+            if exact:
+                candidates = exact
         if len(candidates) > 1:
             target = destination(event.transportation.destination.name)
             candidates = [d for d in candidates if target and destination(d.destination) == target]

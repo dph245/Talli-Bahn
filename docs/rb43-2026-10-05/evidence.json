@@ -1,0 +1,614 @@
+{
+  "url": "https://realtime.gtfs.de/realtime-free.pb",
+  "timestamp": 1791216951,
+  "timestamp_utc": "2026-10-05T16:15:51+00:00",
+  "sha256": "c163bec0a5a31c084590819c7567fbbd6aef52f91fc2c9762e0f5908b5bbcd95",
+  "bytes": 47193840,
+  "counts": {
+    "conflicting_stop_sequences": 59820,
+    "no_stop_sequence_conflict": 47,
+    "unknown_trip_id": 688
+  },
+  "rb43_trip_1029743_update_entities": [],
+  "rb43_trip_1029743_alert_entities": [],
+  "example_entity": {
+    "id": "1471395tu",
+    "trip_update": {
+      "trip": {
+        "trip_id": "1471395",
+        "start_date": "20261005",
+        "schedule_relationship": "SCHEDULED"
+      },
+      "stop_time_update": [
+        {
+          "stop_sequence": 0,
+          "departure": {
+            "delay": 132,
+            "time": "1791214332"
+          },
+          "stop_id": "51483",
+          "schedule_relationship": "SCHEDULED"
+        },
+        {
+          "stop_sequence": 1,
+          "arrival": {
+            "delay": 120,
+            "time": "1791214440"
+          },
+          "departure": {
+            "delay": 156,
+            "time": "1791214476"
+          },
+          "stop_id": "24842",
+          "schedule_relationship": "SCHEDULED"
+        },
+        {
+          "stop_sequence": 2,
+          "arrival": {
+            "delay": 108,
+            "time": "1791214518"
+          },
+          "departure": {
+            "delay": 132,
+            "time": "1791214542"
+          },
+          "stop_id": "599690",
+          "schedule_relationship": "SCHEDULED"
+        },
+        {
+          "stop_sequence": 3,
+          "arrival": {
+            "delay": 156,
+            "time": "1791214686"
+          },
+          "departure": {
+            "delay": 180,
+            "time": "1791214710"
+          },
+          "stop_id": "156910",
+          "schedule_relationship": "SCHEDULED"
+        },
+        {
+          "stop_sequence": 4,
+          "arrival": {
+            "delay": 276,
+            "time": "1791214926"
+          },
+          "departure": {
+            "delay": 294,
+            "time": "1791214944"
+          },
+          "stop_id": "390781",
+          "schedule_relationship": "SCHEDULED"
+        },
+        {
+          "stop_sequence": 5,
+          "arrival": {
+            "delay": 228,
+            "time": "1791215088"
+          },
+          "departure": {
+            "delay": 228,
+            "time": "1791215088"
+          },
+          "stop_id": "89536",
+          "schedule_relationship": "SCHEDULED"
+        },
+        {
+          "stop_sequence": 6,
+          "arrival": {
+            "delay": 174,
+            "time": "1791215124"
+          },
+          "departure": {
+            "delay": 174,
+            "time": "1791215124"
+          },
+          "stop_id": "362820",
+          "schedule_relationship": "SCHEDULED"
+        },
+        {
+          "stop_sequence": 7,
+          "arrival": {
+            "delay": 156,
+            "time": "1791215166"
+          },
+          "departure": {
+            "delay": 198,
+            "time": "1791215208"
+          },
+          "stop_id": "593815",
+          "schedule_relationship": "SCHEDULED"
+        },
+        {
+          "stop_sequence": 8,
+          "arrival": {
+            "delay": 192,
+            "time": "1791215292"
+          },
+          "departure": {
+            "delay": 192,
+            "time": "1791215292"
+          },
+          "stop_id": "110755",
+          "schedule_relationship": "SCHEDULED"
+        },
+        {
+          "stop_sequence": 9,
+          "arrival": {
+            "delay": 138,
+            "time": "1791215328"
+          },
+          "departure": {
+            "delay": 162,
+            "time": "1791215352"
+          },
+          "stop_id": "531801",
+          "schedule_relationship": "SCHEDULED"
+        },
+        {
+          "stop_sequence": 10,
+          "arrival": {
+            "delay": 132,
+            "time": "1791215412"
+          },
+          "departure": {
+            "delay": 132,
+            "time": "1791215412"
+          },
+          "stop_id": "346720",
+          "schedule_relationship": "SCHEDULED"
+        },
+        {
+          "stop_sequence": 11,
+          "arrival": {
+            "delay": 66,
+            "time": "1791215466"
+          },
+          "departure": {
+            "delay": 84,
+            "time": "1791215484"
+          },
+          "stop_id": "585813",
+          "schedule_relationship": "SCHEDULED"
+        },
+        {
+          "stop_sequence": 12,
+          "arrival": {
+            "delay": 84,
+            "time": "1791215544"
+          },
+          "departure": {
+            "delay": 84,
+            "time": "1791215544"
+          },
+          "stop_id": "521404",
+          "schedule_relationship": "SCHEDULED"
+        },
+        {
+          "stop_sequence": 13,
+          "arrival": {
+            "delay": 204,
+            "time": "1791215784"
+          },
+          "departure": {
+            "delay": 204,
+            "time": "1791215784"
+          },
+          "stop_id": "69539",
+          "schedule_relationship": "SCHEDULED"
+        },
+        {
+          "stop_sequence": 14,
+          "arrival": {
+            "delay": 126,
+            "time": "1791215796"
+          },
+          "departure": {
+            "delay": 162,
+            "time": "1791215832"
+          },
+          "stop_id": "125811",
+          "schedule_relationship": "SCHEDULED"
+        },
+        {
+          "stop_sequence": 15,
+          "arrival": {
+            "delay": 72,
+            "time": "1791215952"
+          },
+          "departure": {
+            "delay": 72,
+            "time": "1791215952"
+          },
+          "stop_id": "369903",
+          "schedule_relationship": "SCHEDULED"
+        },
+        {
+          "stop_sequence": 16,
+          "arrival": {
+            "delay": 6,
+            "time": "1791215976"
+          },
+          "departure": {
+            "delay": 30,
+            "time": "1791216000"
+          },
+          "stop_id": "384120",
+          "schedule_relationship": "SCHEDULED"
+        },
+        {
+          "stop_sequence": 17,
+          "arrival": {
+            "delay": 54,
+            "time": "1791216144"
+          },
+          "departure": {
+            "delay": 72,
+            "time": "1791216162"
+          },
+          "stop_id": "126696",
+          "schedule_relationship": "SCHEDULED"
+        },
+        {
+          "stop_sequence": 18,
+          "arrival": {
+            "delay": 48,
+            "time": "1791216258"
+          },
+          "departure": {
+            "delay": 78,
+            "time": "1791216288"
+          },
+          "stop_id": "12981",
+          "schedule_relationship": "SCHEDULED"
+        },
+        {
+          "stop_sequence": 19,
+          "arrival": {
+            "delay": 102,
+            "time": "1791216372"
+          },
+          "departure": {
+            "delay": 102,
+            "time": "1791216372"
+          },
+          "stop_id": "99607",
+          "schedule_relationship": "SCHEDULED"
+        },
+        {
+          "stop_sequence": 20,
+          "arrival": {
+            "delay": 84,
+            "time": "1791216414"
+          },
+          "departure": {
+            "delay": 84,
+            "time": "1791216414"
+          },
+          "stop_id": "266822",
+          "schedule_relationship": "SCHEDULED"
+        },
+        {
+          "stop_sequence": 21,
+          "arrival": {
+            "delay": 6,
+            "time": "1791216456"
+          },
+          "departure": {
+            "delay": 60,
+            "time": "1791216510"
+          },
+          "stop_id": "1405",
+          "schedule_relationship": "SCHEDULED"
+        },
+        {
+          "stop_sequence": 22,
+          "arrival": {
+            "delay": 42,
+            "time": "1791216582"
+          },
+          "departure": {
+            "delay": 66,
+            "time": "1791216606"
+          },
+          "stop_id": "409094",
+          "schedule_relationship": "SCHEDULED"
+        },
+        {
+          "stop_sequence": 23,
+          "arrival": {
+            "delay": 66,
+            "time": "1791216726"
+          },
+          "departure": {
+            "delay": 66,
+            "time": "1791216726"
+          },
+          "stop_id": "57391",
+          "schedule_relationship": "SCHEDULED"
+        },
+        {
+          "stop_sequence": 24,
+          "arrival": {
+            "delay": 66,
+            "time": "1791216846"
+          },
+          "departure": {
+            "delay": 66,
+            "time": "1791216846"
+          },
+          "stop_id": "204292",
+          "schedule_relationship": "SCHEDULED"
+        },
+        {
+          "stop_sequence": 25,
+          "arrival": {
+            "delay": 66,
+            "time": "1791216966"
+          },
+          "departure": {
+            "delay": 66,
+            "time": "1791216966"
+          },
+          "stop_id": "66989",
+          "schedule_relationship": "SCHEDULED"
+        },
+        {
+          "stop_sequence": 26,
+          "arrival": {
+            "delay": 66,
+            "time": "1791217116"
+          },
+          "stop_id": "642043",
+          "schedule_relationship": "SCHEDULED"
+        },
+        {
+          "stop_sequence": 27,
+          "arrival": {
+            "delay": 66,
+            "time": "1791217266"
+          },
+          "departure": {
+            "delay": 66,
+            "time": "1791217266"
+          },
+          "stop_id": "362572",
+          "schedule_relationship": "SCHEDULED"
+        },
+        {
+          "stop_sequence": 28,
+          "arrival": {
+            "delay": 66,
+            "time": "1791217326"
+          },
+          "departure": {
+            "delay": 66,
+            "time": "1791217326"
+          },
+          "stop_id": "628749",
+          "schedule_relationship": "SCHEDULED"
+        },
+        {
+          "stop_sequence": 29,
+          "arrival": {
+            "delay": 66,
+            "time": "1791217446"
+          },
+          "departure": {
+            "delay": 66,
+            "time": "1791217446"
+          },
+          "stop_id": "215597",
+          "schedule_relationship": "SCHEDULED"
+        },
+        {
+          "stop_sequence": 30,
+          "arrival": {
+            "delay": 66,
+            "time": "1791217506"
+          },
+          "departure": {
+            "delay": 66,
+            "time": "1791217506"
+          },
+          "stop_id": "275592",
+          "schedule_relationship": "SCHEDULED"
+        },
+        {
+          "stop_sequence": 31,
+          "arrival": {
+            "delay": 66,
+            "time": "1791217566"
+          },
+          "departure": {
+            "delay": 66,
+            "time": "1791217566"
+          },
+          "stop_id": "463361",
+          "schedule_relationship": "SCHEDULED"
+        },
+        {
+          "stop_sequence": 32,
+          "arrival": {
+            "delay": 66,
+            "time": "1791217656"
+          },
+          "departure": {
+            "delay": 66,
+            "time": "1791217656"
+          },
+          "stop_id": "568703",
+          "schedule_relationship": "SCHEDULED"
+        },
+        {
+          "stop_sequence": 33,
+          "arrival": {
+            "delay": 66,
+            "time": "1791217716"
+          },
+          "departure": {
+            "delay": 66,
+            "time": "1791217716"
+          },
+          "stop_id": "363495",
+          "schedule_relationship": "SCHEDULED"
+        },
+        {
+          "stop_sequence": 34,
+          "arrival": {
+            "delay": 66,
+            "time": "1791217806"
+          },
+          "departure": {
+            "delay": 66,
+            "time": "1791217806"
+          },
+          "stop_id": "396943",
+          "schedule_relationship": "SCHEDULED"
+        },
+        {
+          "stop_sequence": 35,
+          "arrival": {
+            "delay": 66,
+            "time": "1791217866"
+          },
+          "stop_id": "450925",
+          "schedule_relationship": "SCHEDULED"
+        }
+      ]
+    }
+  },
+  "example_local_trip": {
+    "trip_id": "1471395",
+    "route_id": "253",
+    "service_id": "3294",
+    "trip_headsign": "",
+    "direction_id": null,
+    "route_short_name": "86",
+    "agency_id": "26",
+    "agency_name": "LVB"
+  },
+  "example_local_stops": [
+    {
+      "trip_id": "1471395",
+      "stop_id": "67717",
+      "stop_sequence": 0,
+      "arrival": 24900,
+      "departure": 24900,
+      "stop_headsign": "Hohenheida über Sachsenpark",
+      "pickup_type": 0,
+      "drop_off_type": 0
+    },
+    {
+      "trip_id": "1471395",
+      "stop_id": "27974",
+      "stop_sequence": 1,
+      "arrival": 24960,
+      "departure": 24960,
+      "stop_headsign": "Hohenheida über Sachsenpark",
+      "pickup_type": 0,
+      "drop_off_type": 0
+    },
+    {
+      "trip_id": "1471395",
+      "stop_id": "314082",
+      "stop_sequence": 2,
+      "arrival": 25020,
+      "departure": 25020,
+      "stop_headsign": "Hohenheida über Sachsenpark",
+      "pickup_type": 0,
+      "drop_off_type": 0
+    },
+    {
+      "trip_id": "1471395",
+      "stop_id": "366344",
+      "stop_sequence": 3,
+      "arrival": 25140,
+      "departure": 25140,
+      "stop_headsign": "Hohenheida über Sachsenpark",
+      "pickup_type": 0,
+      "drop_off_type": 0
+    },
+    {
+      "trip_id": "1471395",
+      "stop_id": "67599",
+      "stop_sequence": 4,
+      "arrival": 25200,
+      "departure": 25200,
+      "stop_headsign": "Hohenheida",
+      "pickup_type": 0,
+      "drop_off_type": 0
+    },
+    {
+      "trip_id": "1471395",
+      "stop_id": "481626",
+      "stop_sequence": 5,
+      "arrival": 25380,
+      "departure": 25380,
+      "stop_headsign": "Hohenheida",
+      "pickup_type": 0,
+      "drop_off_type": 0
+    },
+    {
+      "trip_id": "1471395",
+      "stop_id": "195961",
+      "stop_sequence": 6,
+      "arrival": 25440,
+      "departure": 25440,
+      "stop_headsign": "Hohenheida",
+      "pickup_type": 0,
+      "drop_off_type": 0
+    },
+    {
+      "trip_id": "1471395",
+      "stop_id": "572721",
+      "stop_sequence": 7,
+      "arrival": 25500,
+      "departure": 25500,
+      "stop_headsign": "Hohenheida",
+      "pickup_type": 0,
+      "drop_off_type": 0
+    },
+    {
+      "trip_id": "1471395",
+      "stop_id": "440915",
+      "stop_sequence": 8,
+      "arrival": 25620,
+      "departure": 25620,
+      "stop_headsign": "Hohenheida",
+      "pickup_type": 0,
+      "drop_off_type": 0
+    },
+    {
+      "trip_id": "1471395",
+      "stop_id": "489853",
+      "stop_sequence": 9,
+      "arrival": 25680,
+      "departure": 25680,
+      "stop_headsign": "Hohenheida",
+      "pickup_type": 0,
+      "drop_off_type": 0
+    },
+    {
+      "trip_id": "1471395",
+      "stop_id": "207097",
+      "stop_sequence": 10,
+      "arrival": 25740,
+      "departure": 25740,
+      "stop_headsign": "Hohenheida",
+      "pickup_type": 0,
+      "drop_off_type": 0
+    },
+    {
+      "trip_id": "1471395",
+      "stop_id": "398551",
+      "stop_sequence": 11,
+      "arrival": 25920,
+      "departure": 25920,
+      "stop_headsign": "Hohenheida",
+      "pickup_type": 0,
+      "drop_off_type": 0
+    }
+  ]
+}
