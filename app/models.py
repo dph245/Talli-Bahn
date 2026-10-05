@@ -12,6 +12,7 @@ BoardKind = Literal["departures", "arrivals"]
 class Stop(BaseModel):
     id: str
     name: str
+    dataset_version: str | None = None
 
 
 class NearbyStop(Stop):

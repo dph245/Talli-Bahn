@@ -30,9 +30,26 @@ def create_app(provider: TransitProvider | None = None):
     application = FastAPI(title="Talli · Abfahrtsmonitor", version="0.1.0", lifespan=lifespan)
     application.state.provider = provider
 
+    async def version():
+        getter = getattr(provider, 'dataset_version', None)
+        return await run_in_threadpool(getter) if getter else None
+
+    async def check_version(expected):
+        current = await version()
+        if expected != current:
+            raise HTTPException(409, 'Fahrplandaten geändert. Bitte Haltestelle neu auswählen.')
+        return current
+
+    @application.get("/api/dataset")
+    async def dataset():
+        return {"version": await version()}
+
     @application.get("/api/stops", response_model=list[Stop])
     async def stops(q: str = Query(default="", max_length=120)):
-        return await run_in_threadpool(provider.search, q.strip())
+        generation = await version()
+        result = await run_in_threadpool(provider.search, q.strip())
+        await check_version(generation)
+        return [s.model_copy(update={'dataset_version': generation}) for s in result]
 
     @application.post("/api/stops/nearby", response_model=list[NearbyStop])
     async def nearby(position: NearbyPosition):
@@ -40,18 +57,28 @@ def create_app(provider: TransitProvider | None = None):
         if search is None:
             raise HTTPException(503, 'Umgebungssuche nicht verfügbar')
         try:
-            return await run_in_threadpool(search, position.lat, position.lon)
+            generation = await version()
+            result = await run_in_threadpool(search, position.lat, position.lon)
+            await check_version(generation)
+            return [s.model_copy(update={'dataset_version': generation}) for s in result]
         except ValueError:
             raise HTTPException(503, 'Umgebungssuche nicht verfügbar') from None
 
     @application.get("/api/board", response_model=Board)
     async def board(stop_id: str = Query(min_length=1, max_length=300),
                     kind: Literal["departures", "arrivals"] = "departures",
-                    realtime: bool = True):
+                    realtime: bool = True,
+                    dataset_version: str | None = Query(default=None, max_length=150)):
         try:
+            generation = await version()
+            if dataset_version is not None:
+                await check_version(dataset_version)
             loader = provider.board if realtime else getattr(provider, "static_board", provider.board)
-            return await loader(stop_id, kind, datetime.now(ZoneInfo("Europe/Berlin")))
+            result = await loader(stop_id, kind, datetime.now(ZoneInfo("Europe/Berlin")))
+            await check_version(generation)
+            return result.model_copy(update={'stop': result.stop.model_copy(update={'dataset_version': generation})})
         except KeyError:
+            await check_version(generation)
             raise HTTPException(404, "Haltestelle nicht gefunden") from None
 
     @application.middleware("http")

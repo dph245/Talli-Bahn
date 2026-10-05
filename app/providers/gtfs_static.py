@@ -3,6 +3,7 @@ from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from zoneinfo import ZoneInfo
 from ..database import connect, validate_schema
+from ..dataset import gtfs_version
 from ..models import Board, BoardKind, Departure, Stop, train_number
 from .search import SEARCH_NAME_SQL, like_pattern, search_terms
 from .nearby import NearbyCatalog
@@ -35,6 +36,9 @@ class GTFSStaticProvider:
         validate_schema(path)
         self.path = path
         self.nearby_catalog = NearbyCatalog(path)
+
+    def dataset_version(self):
+        return gtfs_version(self.path)
 
     def nearby(self, lat, lon):
         return self.nearby_catalog.search(lat, lon)

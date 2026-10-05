@@ -324,3 +324,36 @@ Optionales numerisches `trip_short_name` bei Bahnfahrten wird bei neuen Imports
 bewahrt und mit EFA-`trainNumber` verglichen. Unterschiedliche vorhandene Nummern
 verhindern einen Match; fehlt eine Nummer, gilt der bisherige Fallback. Bestehende
 Datenbanken bleiben lesbar. Der vorhandene Basisfeed enthält keine Zugnummern.
+
+### Favoriten bei einem GTFS-Neuimport
+
+Favoriten (`talli:favorites`) und letzte Auswahl (`talli:last-stop`) speichern
+`id`, `name` und `dataset_version`. Jeder erfolgreiche GTFS-Import erhält eine
+neue persistierte Importkennung; ein Serverneustart oder alleiniger Neubau des
+EFA-Katalogs ändert sie nicht. Auch der erneute Import desselben ZIP gilt bewusst
+als neue Generation. Bestehende Datenbanken ohne Importkennung erhalten eine
+konservative Dateigenerationskennung, ohne Änderung oder erneuten Import der
+Datenbank. Bei Kopieren/Ersetzen dieser älteren Datenbanken kann sie wechseln.
+
+Nach einem Importwechsel und bei bisherigen Favoriten ohne Versionsangabe zeigt
+Talli **„Neu auswählen“**. Der Eintrag bleibt erhalten und lädt keine Tafel unter
+der möglicherweise neu belegten ID. Über „Haltestelle neu auswählen“ wird nach
+dem alten Namen gesucht; erst die bewusste Auswahl eines aktuellen Treffers
+ersetzt diesen Eintrag. Alternativ kann der alte Favorit entfernt werden.
+Es gibt keine automatische Zuordnung nach Name, Koordinaten oder ähnlicher
+Gruppenstruktur. Dieselbe Prüfung gilt für die letzte Auswahl nach einem Reload.
+Eine leere Tafel bei einer gültigen aktuellen Referenz bleibt dagegen zulässig.
+
+`GET /api/dataset` liefert die aktuelle Kennung. Such-/Umgebungstreffer und
+`board.stop` enthalten `dataset_version`. Der Browser sendet diese als Parameter
+an `/api/board`; bei abweichender Generation antwortet der Server mit HTTP 409,
+bevor er die Fahrtabfrage startet. Ein Importwechsel während einer Such- oder
+Tafelabfrage wird ebenfalls zurückgewiesen. Für bestehende API-Clients bleibt
+der Parameter optional; diese müssen die Versionsbindung selbst übernehmen.
+Demo-Daten verwenden einen eigenen Namensraum. Bereits geöffnete ältere
+Browser-Versionen müssen nach dem Deployment neu geladen werden.
+
+Hintergrund und Belege:
+[Favoriten und Bad Harzburg](docs/favorites-and-stops-2026-10-05/README.md).
+Regressionen: `tests/test_favorite_versions.py` und
+`PYTHONPATH=. .venv/bin/python tests/browser_favorites.py`.

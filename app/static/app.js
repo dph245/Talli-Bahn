@@ -8,7 +8,7 @@ const storage = {
 const isStop = value => value && typeof value.id === 'string' && typeof value.name === 'string';
 const savedFavorites = storage.get('favorites', []);
 const state = {stop: null, kind: 'departures', mode: 'all', board: null, stale: false,
-  favorites: Array.isArray(savedFavorites) ? savedFavorites.filter(isStop) : [], request: 0};
+  favorites: Array.isArray(savedFavorites) ? savedFavorites.filter(isStop) : [], request: 0, version: null, repair: null};
 let controller, searchController, searchTimer, searchVersion = 0;
 const time = value => new Intl.DateTimeFormat('de-DE', {hour: '2-digit', minute: '2-digit', timeZone: 'Europe/Berlin'}).format(new Date(value));
 function element(tag, className, text) { const node = document.createElement(tag); if (className) node.className = className; if (text !== undefined) node.textContent = text; return node; }
@@ -17,19 +17,56 @@ setTheme(storage.get('theme', 'dark') === 'light' ? 'light' : 'dark');
 $('theme').addEventListener('click', () => { const theme = document.documentElement.dataset.theme === 'dark' ? 'light' : 'dark'; setTheme(theme); storage.set('theme', theme); });
 function tick() { const now = new Date(); $('clock').textContent = time(now); $('clock').dateTime = now.toISOString(); $('date').textContent = new Intl.DateTimeFormat('de-DE', {weekday: 'long', day: 'numeric', month: 'long', timeZone: 'Europe/Berlin'}).format(now); }
 tick(); setInterval(tick, 1000);
+function sameStop(a, b) { return a?.id === b?.id && a?.dataset_version === b?.dataset_version; }
+function currentStop(stop) { return typeof stop?.dataset_version === 'string' && stop.dataset_version === state.version; }
 function renderFavorites() {
   $('favorites').replaceChildren();
-  for (const stop of state.favorites) { const button = element('button', `favorite-chip${stop.id === state.stop?.id ? ' selected' : ''}`, `★  ${stop.name}`); button.addEventListener('click', () => selectStop(stop)); $('favorites').append(button); }
+  for (const stop of state.favorites) { const button = element('button', `favorite-chip${sameStop(stop, state.stop) ? ' selected' : ''}`, `★  ${stop.name}${currentStop(stop) ? "" : " · Neu auswählen"}`); button.addEventListener('click', () => selectStop(stop)); $('favorites').append(button); }
   $('favorites-empty').hidden = state.favorites.length > 0;
-  const selected = state.favorites.some(stop => stop.id === state.stop?.id);
+  const selected = state.favorites.some(stop => sameStop(stop, state.stop));
   $('favorite').textContent = selected ? '★' : '☆'; $('favorite').setAttribute('aria-pressed', String(selected));
   $('favorite').setAttribute('aria-label', selected ? 'Haltestelle aus Favoriten entfernen' : 'Haltestelle als Favorit speichern');
   $('favorite').disabled = !state.stop;
 }
-$('favorite').addEventListener('click', () => { if (!state.stop) return; const index = state.favorites.findIndex(stop => stop.id === state.stop.id); if (index >= 0) state.favorites.splice(index, 1); else state.favorites.push(state.stop); storage.set('favorites', state.favorites); renderFavorites(); });
+$('favorite').addEventListener('click', () => { if (!state.stop) return; const index = state.favorites.findIndex(stop => sameStop(stop, state.stop)); if (index >= 0) state.favorites.splice(index, 1); else state.favorites.push(state.stop); storage.set('favorites', state.favorites); renderFavorites(); });
 function resetFilters() { state.mode = 'all'; $('line').value = ''; $('direction').value = ''; updateModes(); }
-function selectStop(stop) {
-  stop = {id: stop.id, name: stop.name};
+function requireSelection(stop) {
+  ++state.request; controller?.abort();
+  state.stop = null; state.board = null; state.repair = stop;
+  $('station-name').textContent = stop.name;
+  $('selection-message').textContent = `„${stop.name}“ kann dem aktuellen Fahrplan nicht sicher zugeordnet werden. Bitte suche die Haltestelle und wähle den passenden Treffer bewusst neu aus. Deine Auswahl ersetzt den gespeicherten Eintrag.`;
+  $('selection-repair').hidden = false;
+  $('selection-remove').hidden = !state.favorites.some(s => sameStop(s, stop));
+  $('error').hidden = true; $('updated').textContent = 'Haltestelle neu auswählen';
+  $('refresh').disabled = false; $('board-panel').setAttribute('aria-busy', 'false');
+  $('source-badge').textContent = 'FAHRPLAN'; $('notice').hidden = true;
+  resetFilters(); renderFavorites(); render();
+}
+$('selection-search').addEventListener('click', event => {
+  event.stopPropagation();
+  $('search').value = state.repair?.name || '';
+  $('search').focus(); searchStops();
+});
+$('selection-remove').addEventListener('click', () => {
+  state.favorites = state.favorites.filter(s => !sameStop(s, state.repair));
+  storage.set('favorites', state.favorites);
+  if (sameStop(storage.get('last-stop', null), state.repair)) storage.set('last-stop', null);
+  state.repair = null; $('selection-repair').hidden = true;
+  $('station-name').textContent = 'Haltestelle auswählen'; renderFavorites(); render();
+});
+function selectStop(stop, fresh = false) {
+  stop = {id: stop.id, name: stop.name, dataset_version: stop.dataset_version};
+  if (fresh && typeof stop.dataset_version === 'string') state.version = stop.dataset_version;
+  if (!currentStop(stop)) { requireSelection(stop); return; }
+  if (fresh && state.repair) {
+    const index = state.favorites.findIndex(s => sameStop(s, state.repair));
+    if (index >= 0) {
+      state.favorites.splice(index, 1);
+      if (!state.favorites.some(s => sameStop(s, stop))) state.favorites.splice(index, 0, stop);
+      storage.set('favorites', state.favorites);
+    }
+  }
+  state.repair = null; $('selection-repair').hidden = true;
   ++searchVersion; searchController?.abort(); clearTimeout(searchTimer);
   state.stop = stop; state.board = null; state.stale = false;
   storage.set('last-stop', stop); $('station-name').textContent = stop.name;
@@ -47,7 +84,7 @@ function showStops(stops, emptyMessage) {
       const label = stop.distance_m < 1000 ? `${stop.distance_m} m` : `${(stop.distance_m / 1000).toFixed(1).replace('.', ',')} km`;
       button.append(element('span', 'nearby-distance', `ca. ${label} Luftlinie`));
     }
-    button.addEventListener('click', () => selectStop(stop));
+    button.addEventListener('click', () => selectStop(stop, true));
     $('search-results').append(button);
   }
   $('search-results').hidden = false;
@@ -122,8 +159,11 @@ async function loadBoard() {
     && state.board?.realtime_status === 'available';
   try {
     for (const realtime of [false, true]) {
-      const board = await getJSON(`/api/board?stop_id=${encodeURIComponent(stop.id)}&kind=${kind}&realtime=${realtime}`, activeController.signal);
+      const board = await getJSON(`/api/board?stop_id=${encodeURIComponent(stop.id)}&kind=${kind}&realtime=${realtime}&dataset_version=${encodeURIComponent(stop.dataset_version)}`, activeController.signal);
       if (request !== state.request) return;
+      if (board.stop.dataset_version !== stop.dataset_version || board.stop.id !== stop.id || board.stop.name !== stop.name) {
+        const error = new Error('Haltestellenidentität geändert'); error.status = 409; throw error;
+      }
       if (!realtime) {
         fallbackBoard = board;
         // Do not briefly remove delayed journeys on every periodic refresh.
@@ -141,6 +181,12 @@ async function loadBoard() {
     }
   } catch (error) {
     if (request !== state.request) return;
+    if (error.status === 409 || error.status === 404) {
+      requireSelection(stop);
+      const repairRequest = state.request;
+      try { const dataset = await getJSON('/api/dataset'); if (state.request === repairRequest) { state.version = dataset.version; renderFavorites(); } } catch { /* Selection remains blocked until a fresh search succeeds. */ }
+      return;
+    }
     if (fallbackBoard) {
       showBoard(fallbackBoard, kind);
       $('updated').textContent = `Fahrplan ${time(state.board.updated_at)} · Echtzeit nicht verfügbar`;
@@ -242,6 +288,6 @@ setInterval(() => { if ($('auto').checked && !document.hidden && !$('refresh').d
 document.addEventListener('visibilitychange', () => { if (!document.hidden && $('auto').checked) loadBoard(); });
 window.addEventListener('online', loadBoard);
 window.addEventListener('offline', () => { $('error').textContent = 'Du bist offline. Angezeigte Verbindungen können veraltet sein.'; $('error').hidden = false; $('status-dot').classList.add('stale'); state.stale = true; render(); });
-async function init() { renderFavorites(); try { const stops = await getJSON('/api/stops?q='); const saved = storage.get('last-stop', null); if (isStop(saved)) selectStop(saved); else if (stops.length) selectStop(stops[0]); else { $('updated').textContent = 'Keine Haltestellen'; render(); } } catch { $('updated').textContent = 'Nicht verbunden'; $('error').textContent = 'Haltestellen konnten nicht geladen werden. Bitte Verbindung prüfen und Seite neu laden.'; $('error').hidden = false; } }
+async function init() { renderFavorites(); try { const dataset = await getJSON('/api/dataset'); state.version = dataset.version; renderFavorites(); const stops = await getJSON('/api/stops?q='); const saved = storage.get('last-stop', null); if (isStop(saved)) selectStop(saved); else if (stops.length) selectStop(stops[0], true); else { $('updated').textContent = 'Keine Haltestellen'; render(); } } catch { $('updated').textContent = 'Nicht verbunden'; $('error').textContent = 'Haltestellen konnten nicht geladen werden. Bitte Verbindung prüfen und Seite neu laden.'; $('error').hidden = false; } }
 init();
 if ('serviceWorker' in navigator) navigator.serviceWorker.register('/sw.js').catch(() => {});

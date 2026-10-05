@@ -1,0 +1,182 @@
+[
+  {
+    "file": "de13454c5c29d53614ba01d16163cc9b6eb59711cb8481a699c4d965bebb5a78.json",
+    "cache": {
+      "group": {
+        "id": "439072",
+        "name": "Bad Harzburg, Bahnhof Parkdeck",
+        "coord": [
+          51.88719,
+          10.556399
+        ],
+        "stops": [
+          "439072",
+          "454966",
+          "437706",
+          "30341"
+        ]
+      },
+      "response": {
+        "version": "11.0.6.72",
+        "locations": [
+          {
+            "id": "de:03153:4948",
+            "isGlobalId": true,
+            "name": "Bad Harzburg, Bahnhof Parkdeck",
+            "disassembledName": "Bahnhof Parkdeck",
+            "coord": [
+              51.887192,
+              10.556399
+            ],
+            "type": "stop",
+            "parent": {
+              "id": "placeID:3153002:1",
+              "name": "Bad Harzburg",
+              "type": "locality"
+            },
+            "assignedStops": [
+              {
+                "id": "de:03153:4948",
+                "isGlobalId": true,
+                "name": "Bad Harzburg, Bahnhof Parkdeck",
+                "disassembledName": "Bahnhof Parkdeck",
+                "type": "stop",
+                "coord": [
+                  51.887192,
+                  10.556399
+                ],
+                "parent": {
+                  "name": "Bad Harzburg",
+                  "type": "locality"
+                },
+                "productClasses": [
+                  5,
+                  10
+                ],
+                "connectingMode": 100,
+                "properties": {
+                  "stopId": "26004948"
+                }
+              },
+              {
+                "id": "de:03153:4946",
+                "isGlobalId": true,
+                "name": "Bad Harzburg, Bahnhof",
+                "disassembledName": "Bahnhof",
+                "type": "stop",
+                "coord": [
+                  51.887869,
+                  10.554953
+                ],
+                "parent": {
+                  "name": "Bad Harzburg",
+                  "type": "locality"
+                },
+                "productClasses": [
+                  0,
+                  5,
+                  10,
+                  13
+                ],
+                "connectingMode": 100,
+                "properties": {
+                  "stopId": "26004946"
+                }
+              }
+            ],
+            "properties": {
+              "stopId": "26004948"
+            }
+          }
+        ]
+      },
+      "result": {
+        "status": "UNIQUE",
+        "dhid": "de:03153:4948",
+        "name": "Bad Harzburg, Bahnhof Parkdeck",
+        "distance_m": 0.2223898534611246,
+        "platforms": []
+      }
+    }
+  },
+  {
+    "file": "1fd45e8990c33d0947a39667b5f705b1e48b1c4ca0b363cb8503137f33f21ff4.json",
+    "cache": {
+      "group": {
+        "id": "203787",
+        "name": "Braunschweig, Hauptbahnhof",
+        "coord": [
+          52.252644,
+          10.539547
+        ],
+        "stops": [
+          "203787",
+          "562185",
+          "204620",
+          "374344",
+          "429474",
+          "667210"
+        ]
+      },
+      "response": {
+        "version": "11.0.6.72",
+        "locations": [
+          {
+            "id": "de:03101:178",
+            "isGlobalId": true,
+            "name": "Braunschweig, Hauptbahnhof",
+            "disassembledName": "Hauptbahnhof",
+            "coord": [
+              52.252642,
+              10.539547
+            ],
+            "type": "stop",
+            "parent": {
+              "id": "placeID:3101000:3",
+              "name": "Braunschweig",
+              "type": "locality"
+            },
+            "assignedStops": [
+              {
+                "id": "de:03101:178",
+                "isGlobalId": true,
+                "name": "Braunschweig, Hauptbahnhof",
+                "disassembledName": "Hauptbahnhof",
+                "type": "stop",
+                "coord": [
+                  52.252642,
+                  10.539547
+                ],
+                "parent": {
+                  "name": "Braunschweig",
+                  "type": "locality"
+                },
+                "productClasses": [
+                  0,
+                  4,
+                  5,
+                  6,
+                  13
+                ],
+                "connectingMode": 100,
+                "properties": {
+                  "stopId": "26000178"
+                }
+              }
+            ],
+            "properties": {
+              "stopId": "26000178"
+            }
+          }
+        ]
+      },
+      "result": {
+        "status": "UNIQUE",
+        "dhid": "de:03101:178",
+        "name": "Braunschweig, Hauptbahnhof",
+        "distance_m": 0.22238985275380152,
+        "platforms": []
+      }
+    }
+  }
+]

@@ -82,6 +82,9 @@ class TransportRestProvider:
     async def stop(self):
         await self.primary.stop()
 
+    def dataset_version(self):
+        return self.primary.dataset_version()
+
     def search(self, query):
         return self.primary.search(query)
 

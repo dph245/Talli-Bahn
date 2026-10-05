@@ -7,6 +7,9 @@ class DemoProvider:
     stations = [Stop(id="demo-berlin", name="Berlin Hauptbahnhof"), Stop(id="demo-alex", name="Berlin Alexanderplatz"),
                 Stop(id="demo-hamburg", name="Hamburg Hauptbahnhof"), Stop(id="demo-muenchen", name="München Hauptbahnhof")]
 
+    def dataset_version(self):
+        return "demo:v1"
+
     def search(self, query):
         terms = search_terms(query)
         phrase = ' '.join(terms)

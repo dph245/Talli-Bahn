@@ -74,7 +74,7 @@ def test_nearby_api_and_wrappers(provider):
     with TestClient(create_app(wrapped)) as client:
         response=client.post('/api/stops/nearby',json=dict(lat=52,lon=10))
         assert response.status_code == 200
-        assert response.json() == [dict(id='s',name='Stop s',distance_m=0)]
+        assert response.json() == [dict(id='s',name='Stop s',distance_m=0,dataset_version=provider.dataset_version())]
         assert response.headers['cache-control']=='no-store'
         assert client.get('/api/stops/nearby').status_code==405
         for data in [dict(lat=91,lon=10),dict(lat=52,lon=-181),{},dict(lat='NaN',lon=10)]:

@@ -1,0 +1,744 @@
+{
+  "examined_at_utc": "2026-10-05T18:28:20.819788+00:00",
+  "database_signature": [
+    5061582848,
+    1791224226574544776
+  ],
+  "catalog_signature": [
+    5061582848,
+    1791224226574544776
+  ],
+  "groups": [
+    {
+      "requested_id": "421683",
+      "stops": [
+        {
+          "stop_id": "421683",
+          "stop_name": "Bad Harzburg, Bahnhof",
+          "search_name": "bad harzburg, bahnhof",
+          "parent_station": "",
+          "platform_code": "",
+          "location_type": 1
+        },
+        {
+          "stop_id": "149802",
+          "stop_name": "Bad Harzburg, Bahnhof",
+          "search_name": "bad harzburg, bahnhof",
+          "parent_station": "421683",
+          "platform_code": "",
+          "location_type": 0
+        },
+        {
+          "stop_id": "357898",
+          "stop_name": "Bad Harzburg, Bahnhof Parkdeck",
+          "search_name": "bad harzburg, bahnhof parkdeck",
+          "parent_station": "421683",
+          "platform_code": "",
+          "location_type": 0
+        }
+      ],
+      "routes": [
+        {
+          "stop_id": "149802",
+          "route_id": "18338",
+          "route_short_name": "821",
+          "route_type": 3,
+          "agency_name": "Tarifverb Region Braunschweig",
+          "stop_events": 37,
+          "trips": 37
+        },
+        {
+          "stop_id": "149802",
+          "route_id": "20004",
+          "route_short_name": "820",
+          "route_type": 3,
+          "agency_name": "Tarifverb Region Braunschweig",
+          "stop_events": 96,
+          "trips": 96
+        },
+        {
+          "stop_id": "149802",
+          "route_id": "903",
+          "route_short_name": "810",
+          "route_type": 3,
+          "agency_name": "Tarifverb Region Braunschweig",
+          "stop_events": 91,
+          "trips": 91
+        },
+        {
+          "stop_id": "357898",
+          "route_id": "10681",
+          "route_short_name": "874",
+          "route_type": 3,
+          "agency_name": "Tarifverb Region Braunschweig",
+          "stop_events": 13,
+          "trips": 13
+        },
+        {
+          "stop_id": "357898",
+          "route_id": "11527",
+          "route_short_name": "873",
+          "route_type": 3,
+          "agency_name": "Tarifverb Region Braunschweig",
+          "stop_events": 26,
+          "trips": 25
+        },
+        {
+          "stop_id": "357898",
+          "route_id": "19644",
+          "route_short_name": "875",
+          "route_type": 3,
+          "agency_name": "Tarifverb Region Braunschweig",
+          "stop_events": 17,
+          "trips": 17
+        },
+        {
+          "stop_id": "357898",
+          "route_id": "19863",
+          "route_short_name": "871",
+          "route_type": 3,
+          "agency_name": "Tarifverb Region Braunschweig",
+          "stop_events": 40,
+          "trips": 40
+        }
+      ],
+      "efa_catalog_group": {
+        "id": "421683",
+        "name": "Bad Harzburg, Bahnhof",
+        "coord": [
+          51.88787,
+          10.554953
+        ],
+        "stops": [
+          "421683",
+          "149802",
+          "357898"
+        ],
+        "children": [
+          {
+            "id": "149802",
+            "name": "Bad Harzburg, Bahnhof",
+            "coord": [
+              51.88748,
+              10.555262
+            ],
+            "parent_station": "421683"
+          },
+          {
+            "id": "357898",
+            "name": "Bad Harzburg, Bahnhof Parkdeck",
+            "coord": [
+              51.887054,
+              10.556624
+            ],
+            "parent_station": "421683"
+          }
+        ]
+      },
+      "zip_stops": [
+        {
+          "stop_name": "Bad Harzburg, Bahnhof",
+          "parent_station": "",
+          "stop_id": "421683",
+          "stop_lat": "51.88787",
+          "stop_lon": "10.554953",
+          "location_type": "1",
+          "platform_code": ""
+        },
+        {
+          "stop_name": "Bad Harzburg, Bahnhof",
+          "parent_station": "421683",
+          "stop_id": "149802",
+          "stop_lat": "51.88748",
+          "stop_lon": "10.555262",
+          "location_type": "",
+          "platform_code": ""
+        },
+        {
+          "stop_name": "Bad Harzburg, Bahnhof Parkdeck",
+          "parent_station": "421683",
+          "stop_id": "357898",
+          "stop_lat": "51.887054",
+          "stop_lon": "10.556624",
+          "location_type": "",
+          "platform_code": ""
+        }
+      ]
+    },
+    {
+      "requested_id": "380494",
+      "stops": [
+        {
+          "stop_id": "380494",
+          "stop_name": "Bad Harzburg",
+          "search_name": "bad harzburg",
+          "parent_station": "",
+          "platform_code": "",
+          "location_type": 1
+        },
+        {
+          "stop_id": "170535",
+          "stop_name": "Bad Harzburg",
+          "search_name": "bad harzburg",
+          "parent_station": "380494",
+          "platform_code": "",
+          "location_type": 0
+        }
+      ],
+      "routes": [
+        {
+          "stop_id": "170535",
+          "route_id": "14849",
+          "route_short_name": "RE10",
+          "route_type": 3,
+          "agency_name": "erixx",
+          "stop_events": 39,
+          "trips": 39
+        },
+        {
+          "stop_id": "170535",
+          "route_id": "16756",
+          "route_short_name": "RE10",
+          "route_type": 2,
+          "agency_name": "erixx",
+          "stop_events": 48,
+          "trips": 48
+        },
+        {
+          "stop_id": "170535",
+          "route_id": "2429",
+          "route_short_name": "RB82",
+          "route_type": 2,
+          "agency_name": "DB Regio AG Nord",
+          "stop_events": 36,
+          "trips": 36
+        },
+        {
+          "stop_id": "170535",
+          "route_id": "687",
+          "route_short_name": "RB42",
+          "route_type": 2,
+          "agency_name": "erixx",
+          "stop_events": 48,
+          "trips": 48
+        }
+      ],
+      "efa_catalog_group": null,
+      "zip_stops": [
+        {
+          "stop_name": "Bad Harzburg",
+          "parent_station": "",
+          "stop_id": "380494",
+          "stop_lat": "51.88837",
+          "stop_lon": "10.554219",
+          "location_type": "1",
+          "platform_code": ""
+        },
+        {
+          "stop_name": "Bad Harzburg",
+          "parent_station": "380494",
+          "stop_id": "170535",
+          "stop_lat": "51.88837",
+          "stop_lon": "10.554219",
+          "location_type": "",
+          "platform_code": ""
+        }
+      ]
+    },
+    {
+      "requested_id": "255810",
+      "stops": [
+        {
+          "stop_id": "255810",
+          "stop_name": "Bahnhof, Bad Harzburg",
+          "search_name": "bahnhof, bad harzburg",
+          "parent_station": "",
+          "platform_code": "",
+          "location_type": 1
+        },
+        {
+          "stop_id": "227540",
+          "stop_name": "Bahnhof, Bad Harzburg",
+          "search_name": "bahnhof, bad harzburg",
+          "parent_station": "255810",
+          "platform_code": "",
+          "location_type": 0
+        }
+      ],
+      "routes": [
+        {
+          "stop_id": "227540",
+          "route_id": "20221",
+          "route_short_name": "RB82",
+          "route_type": 3,
+          "agency_name": "DB Nord",
+          "stop_events": 2,
+          "trips": 2
+        }
+      ],
+      "efa_catalog_group": null,
+      "trip_events": [
+        {
+          "trip_id": "976135",
+          "route_id": "20221",
+          "service_id": "4747",
+          "trip_headsign": "",
+          "direction_id": null,
+          "stop_id": "227540",
+          "stop_sequence": 0,
+          "arrival": 80520,
+          "departure": 80520,
+          "stop_headsign": "Kreiensen Bahnhof, Einbeck",
+          "pickup_type": 0,
+          "drop_off_type": 0
+        },
+        {
+          "trip_id": "1888851",
+          "route_id": "20221",
+          "service_id": "4747",
+          "trip_headsign": "",
+          "direction_id": null,
+          "stop_id": "227540",
+          "stop_sequence": 2,
+          "arrival": 81000,
+          "departure": 81000,
+          "stop_headsign": "Bahnhof, Bad Harzburg",
+          "pickup_type": 0,
+          "drop_off_type": 0
+        }
+      ],
+      "calendars": [],
+      "calendar_dates": [
+        {
+          "service_id": "4747",
+          "date": "20261003",
+          "exception_type": 1
+        }
+      ],
+      "zip_stops": [
+        {
+          "stop_name": "Bahnhof, Bad Harzburg",
+          "parent_station": "",
+          "stop_id": "255810",
+          "stop_lat": "51.88748",
+          "stop_lon": "10.555262",
+          "location_type": "1",
+          "platform_code": ""
+        },
+        {
+          "stop_name": "Bahnhof, Bad Harzburg",
+          "parent_station": "255810",
+          "stop_id": "227540",
+          "stop_lat": "51.88748",
+          "stop_lon": "10.555262",
+          "location_type": "",
+          "platform_code": ""
+        }
+      ]
+    }
+  ],
+  "search": {
+    "Bad Harzburg": [
+      {
+        "id": "380494",
+        "name": "Bad Harzburg"
+      },
+      {
+        "id": "632465",
+        "name": "Bad Harzburg, Gestüt"
+      },
+      {
+        "id": "421683",
+        "name": "Bad Harzburg, Bahnhof"
+      },
+      {
+        "id": "335633",
+        "name": "Bad Harzburg, Rathaus"
+      },
+      {
+        "id": "256377",
+        "name": "Bad Harzburg, Friedhof"
+      },
+      {
+        "id": "468745",
+        "name": "Bad Harzburg, Jahnring"
+      },
+      {
+        "id": "315237",
+        "name": "Bad Harzburg, Schulweg"
+      },
+      {
+        "id": "197652",
+        "name": "Bad Harzburg, Uhlenweg"
+      },
+      {
+        "id": "492259",
+        "name": "Bad Harzburg, Birkenweg"
+      },
+      {
+        "id": "640052",
+        "name": "Bad Harzburg, Brücke B4"
+      },
+      {
+        "id": "478618",
+        "name": "Bad Harzburg, Golfplatz"
+      },
+      {
+        "id": "480380",
+        "name": "Bad Harzburg, Sonnenhof"
+      },
+      {
+        "id": "279639",
+        "name": "Bad Harzburg, Sonnenweg"
+      },
+      {
+        "id": "473210",
+        "name": "Bad Harzburg, Stadtpark"
+      },
+      {
+        "id": "424083",
+        "name": "Bad Harzburg, Berggarten"
+      },
+      {
+        "id": "225151",
+        "name": "Bad Harzburg, Bleichetal"
+      },
+      {
+        "id": "33239",
+        "name": "Bad Harzburg, Bodestraße"
+      },
+      {
+        "id": "338550",
+        "name": "Bad Harzburg, Burgstraße"
+      },
+      {
+        "id": "349349",
+        "name": "Bad Harzburg, Golfstraße"
+      },
+      {
+        "id": "434395",
+        "name": "Bad Harzburg, Lärchenweg"
+      }
+    ],
+    "Bad Harzburg Bahnhof": [
+      {
+        "id": "421683",
+        "name": "Bad Harzburg, Bahnhof"
+      },
+      {
+        "id": "255810",
+        "name": "Bahnhof, Bad Harzburg"
+      },
+      {
+        "id": "265371",
+        "name": "Bad Harzburg, Am Bahnhofsplatz"
+      }
+    ],
+    "Bad Harzburg Parkdeck": [],
+    "Goslar Bahnhof": [
+      {
+        "id": "155197",
+        "name": "Goslar, Bahnhof"
+      },
+      {
+        "id": "630925",
+        "name": "Goslar, Bahnhof Nordseite"
+      }
+    ],
+    "Braunschweig Hauptbahnhof": [
+      {
+        "id": "563662",
+        "name": "Braunschweig, Hauptbahnhof"
+      },
+      {
+        "id": "669858",
+        "name": "Braunschweig, Hauptbahnhof/Viewegs G."
+      }
+    ]
+  },
+  "boards_20261005_1200": [
+    {
+      "stop": {
+        "id": "203787",
+        "name": "Bad Bevensen Am Britzenberg"
+      },
+      "journeys": 2,
+      "lines_modes": [
+        [
+          "7070",
+          "bus"
+        ]
+      ]
+    },
+    {
+      "stop": {
+        "id": "563662",
+        "name": "Braunschweig, Hauptbahnhof"
+      },
+      "journeys": 119,
+      "lines_modes": [
+        [
+          "1",
+          "tram"
+        ],
+        [
+          "10",
+          "tram"
+        ],
+        [
+          "2",
+          "tram"
+        ],
+        [
+          "5",
+          "tram"
+        ],
+        [
+          "E",
+          "tram"
+        ],
+        [
+          "IC 55",
+          "rail"
+        ],
+        [
+          "ICE 10",
+          "rail"
+        ],
+        [
+          "ICE 13",
+          "rail"
+        ],
+        [
+          "RB40",
+          "rail"
+        ],
+        [
+          "RB42",
+          "rail"
+        ],
+        [
+          "RB43",
+          "rail"
+        ],
+        [
+          "RB44",
+          "rail"
+        ],
+        [
+          "RB45",
+          "rail"
+        ],
+        [
+          "RB46",
+          "rail"
+        ],
+        [
+          "RB47",
+          "rail"
+        ],
+        [
+          "RB48",
+          "rail"
+        ],
+        [
+          "RE50",
+          "rail"
+        ],
+        [
+          "RE60",
+          "rail"
+        ],
+        [
+          "RE70",
+          "rail"
+        ]
+      ]
+    },
+    {
+      "stop": {
+        "id": "155197",
+        "name": "Goslar, Bahnhof"
+      },
+      "journeys": 76,
+      "lines_modes": [
+        [
+          "801",
+          "bus"
+        ],
+        [
+          "802",
+          "bus"
+        ],
+        [
+          "803",
+          "bus"
+        ],
+        [
+          "804",
+          "bus"
+        ],
+        [
+          "805",
+          "bus"
+        ],
+        [
+          "807",
+          "bus"
+        ],
+        [
+          "808",
+          "bus"
+        ],
+        [
+          "809",
+          "bus"
+        ],
+        [
+          "811",
+          "bus"
+        ],
+        [
+          "RB43",
+          "rail"
+        ],
+        [
+          "RB82",
+          "rail"
+        ],
+        [
+          "RE10",
+          "rail"
+        ],
+        [
+          "RE21",
+          "rail"
+        ],
+        [
+          "RE4",
+          "rail"
+        ]
+      ]
+    },
+    {
+      "stop": {
+        "id": "421683",
+        "name": "Bad Harzburg, Bahnhof"
+      },
+      "journeys": 26,
+      "lines_modes": [
+        [
+          "810",
+          "bus"
+        ],
+        [
+          "820",
+          "bus"
+        ],
+        [
+          "821",
+          "bus"
+        ],
+        [
+          "871",
+          "bus"
+        ],
+        [
+          "873",
+          "bus"
+        ],
+        [
+          "874",
+          "bus"
+        ],
+        [
+          "875",
+          "bus"
+        ]
+      ]
+    },
+    {
+      "stop": {
+        "id": "380494",
+        "name": "Bad Harzburg"
+      },
+      "journeys": 12,
+      "lines_modes": [
+        [
+          "RB42",
+          "rail"
+        ],
+        [
+          "RB82",
+          "rail"
+        ],
+        [
+          "RE10",
+          "rail"
+        ]
+      ]
+    },
+    {
+      "stop": {
+        "id": "255810",
+        "name": "Bahnhof, Bad Harzburg"
+      },
+      "journeys": 0,
+      "lines_modes": []
+    }
+  ],
+  "metadata": {
+    "max_time": "248100",
+    "source": "latest.zip"
+  },
+  "historical_ids_now": [
+    {
+      "stop_id": "203787",
+      "stop_name": "Bad Bevensen Am Britzenberg",
+      "search_name": "bad bevensen am britzenberg",
+      "parent_station": "",
+      "platform_code": "",
+      "location_type": 1
+    },
+    {
+      "stop_id": "414153",
+      "stop_name": "Bad Hersfeld Bad Hersfeld Friedloser Straße II",
+      "search_name": "bad hersfeld bad hersfeld friedloser strasse ii",
+      "parent_station": "358671",
+      "platform_code": "B",
+      "location_type": 0
+    },
+    {
+      "stop_id": "437706",
+      "stop_name": "Jena, Wogau/Jenaprießnitz",
+      "search_name": "jena, wogau/jenapriessnitz",
+      "parent_station": "589558",
+      "platform_code": "",
+      "location_type": 0
+    },
+    {
+      "stop_id": "439072",
+      "stop_name": "Bad Muskau Bahnbrücke",
+      "search_name": "bad muskau bahnbrücke",
+      "parent_station": "395894",
+      "platform_code": "1",
+      "location_type": 0
+    },
+    {
+      "stop_id": "454966",
+      "stop_name": "Galla, Kreuzung",
+      "search_name": "galla, kreuzung",
+      "parent_station": "327474",
+      "platform_code": "",
+      "location_type": 0
+    },
+    {
+      "stop_id": "562185",
+      "stop_name": "Mönchsroth, Abzw. Mönchsroth",
+      "search_name": "mönchsroth, abzw. mönchsroth",
+      "parent_station": "",
+      "platform_code": "",
+      "location_type": 1
+    }
+  ]
+}

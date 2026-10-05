@@ -31,7 +31,7 @@ def main():
             errors=[]
             page.on('pageerror',lambda e:errors.append(str(e)))
             requests=[]
-            hits=[dict(id='demo-alex',name='Berlin Alexanderplatz',distance_m=250)]
+            hits=[dict(id='demo-alex',name='Berlin Alexanderplatz',distance_m=250,dataset_version='demo:v1')]
             def nearby(route):
                 requests.append(route.request)
                 route.fulfill(json=hits)
@@ -51,7 +51,7 @@ def main():
             page.keyboard.press('Enter')
             expect(page.locator('#station-name')).to_have_text('Berlin Alexanderplatz')
             saved=page.evaluate('JSON.parse(localStorage.getItem("talli:last-stop"))')
-            assert saved == dict(id='demo-alex',name='Berlin Alexanderplatz')
+            assert saved == dict(id='demo-alex',name='Berlin Alexanderplatz',dataset_version='demo:v1')
             page.reload()
             expect(page.locator('#journeys tr')).to_have_count(12)
             assert page.evaluate('geoCalls.length') == 0

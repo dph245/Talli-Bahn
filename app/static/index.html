@@ -22,6 +22,11 @@
     <div class="filters"><div class="mode-filters" aria-label="Verkehrsmittel"><button class="mode active" data-mode="all" aria-pressed="true">Alle</button><button class="mode" data-mode="rail" aria-pressed="false">Bahn</button><button class="mode" data-mode="subway" aria-pressed="false">U-Bahn</button><button class="mode" data-mode="tram" aria-pressed="false">Tram</button><button class="mode" data-mode="bus" aria-pressed="false">Bus</button><button class="mode" data-mode="ferry" aria-pressed="false">Fähre</button><button class="mode" data-mode="other" aria-pressed="false">Weitere</button></div><div class="select-filters"><label class="sr-only" for="line">Linie</label><select id="line"><option value="">Alle Linien</option></select><label class="sr-only" for="direction">Richtung oder Herkunft</label><select id="direction"><option value="">Alle Richtungen</option></select></div></div>
     <div id="notice" class="notice" role="status" hidden></div>
     <section id="alerts" class="service-alerts" aria-label="Verkehrsmeldungen" hidden></section>
+    <div id="selection-repair" class="notice" role="status" hidden>
+      <p id="selection-message"></p>
+      <button id="selection-search" class="text-button">Haltestelle neu auswählen</button>
+      <button id="selection-remove" class="text-button">Alten Favoriten entfernen</button>
+    </div>
     <div id="error" class="error" role="alert" hidden></div>
     <div id="board-panel" role="tabpanel" aria-labelledby="departures">
       <div class="table-scroll"><table><caption class="sr-only">Verbindungen für die nächsten zwei Stunden. Alle Zeiten in Europe/Berlin.</caption><thead><tr><th scope="col">ZEIT</th><th scope="col">LINIE / ZUG</th><th scope="col" id="direction-title">RICHTUNG</th><th scope="col" class="platform-col">GLEIS / STEIG</th><th scope="col">ABWEICHUNG / STATUS</th></tr></thead><tbody id="journeys"></tbody></table></div>

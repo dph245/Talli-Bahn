@@ -6,6 +6,7 @@ import os
 from pathlib import Path
 import sqlite3
 import tempfile
+import uuid
 from zipfile import ZipFile
 from .database import SCHEMA
 
@@ -82,6 +83,7 @@ def import_feed(archive_path: Path, db_path: Path):
             maximum = db.execute("SELECT MAX(MAX(COALESCE(arrival,0), COALESCE(departure,0))) FROM stop_times").fetchone()[0] or 86400
             db.execute("INSERT INTO metadata VALUES ('max_time', ?)", (str(maximum),))
             db.execute("INSERT INTO metadata VALUES ('source', ?)", (archive_path.name,))
+            db.execute("INSERT INTO metadata VALUES ('import_id', ?)", (uuid.uuid4().hex,))
         db.execute("ANALYZE")
         db.close()
         os.replace(temporary, db_path)

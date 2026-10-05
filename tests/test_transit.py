@@ -217,7 +217,7 @@ def test_static_provider_works_without_realtime(provider):
     from app.providers import GTFSStaticProvider
     static = GTFSStaticProvider(provider.path)
     with TestClient(create_app(static)) as client:
-        assert client.get('/api/stops?q=Berlin').json() == [{'id': 's', 'name': 'Berlin Hbf'}]
+        assert client.get('/api/stops?q=Berlin').json() == [{'id': 's', 'name': 'Berlin Hbf', 'dataset_version': static.dataset_version()}]
     board = asyncio.run(static.board('s', 'departures', NOW))
     assert [j.trip_id for j in board.journeys] == ['t', 'added']
     assert all(not j.realtime and j.realtime is None for j in board.journeys)
