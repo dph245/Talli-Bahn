@@ -5,11 +5,12 @@ from zipfile import ZipFile
 from .database import connect
 from .import_gtfs import rows
 from .providers.efa_mapping import atomic_json
+from .gtfs_quality import agency_ids, EFA_AGENCIES
 
 
 def prepare(database, archive, output, agency_names):
     with connect(database) as db:
-        agencies = [r[0] for r in db.execute('SELECT agency_id FROM agencies WHERE agency_name IN (' + ','.join('?' for _ in agency_names) + ')', agency_names)]
+        agencies = agency_ids(db, agency_names)
         if not agencies:
             raise ValueError('Keine passende VRB-Agency im GTFS')
         used = {r[0] for r in db.execute('''SELECT DISTINCT COALESCE(NULLIF(s.parent_station,''),s.stop_id)
@@ -52,7 +53,7 @@ def main():
     p.add_argument('--output', type=Path, default=Path('data/vrb-stops.json'))
     p.add_argument('--agency', action='append', default=None)
     a=p.parse_args()
-    print(prepare(a.database,a.archive,a.output,a.agency or ['Tarifverb Region Braunschweig','Regionalbus Braunschweig']))
+    print(prepare(a.database,a.archive,a.output,a.agency or EFA_AGENCIES))
 
 
 if __name__=='__main__':

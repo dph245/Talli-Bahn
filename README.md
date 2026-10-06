@@ -46,6 +46,52 @@ Für eine dauerhafte Einstellung `HOST_PORT=8081` in `.env` setzen (Vorlage: `.e
 
 Der Import liest CSV-Dateien gestreamt, erstellt Such- und Fahrplanindizes und ersetzt die Datenbank erst nach erfolgreichem Abschluss atomar. Ein fehlerhafter Import erhält den bisherigen Datenbestand. Erneute Imports aktualisieren laufende GTFS-Instanzen bei der nächsten Anfrage. Nach dem Wechsel von Demo zu GTFS die Anwendung neu starten. Beim Wechsel der Quelle eine passende Haltestelle neu auswählen; Favoriten sind an die IDs der Datenquelle gebunden.
 
+Vor der Aktivierung prüft `app.gtfs_quality` die fertige Kandidaten-SQLite und,
+falls vorhanden, die bisherige aktive SQLite ausschließlich lesend. EFA-Katalog,
+Discovery-Cache und andere abgeleitete Dateien werden weder benötigt noch geändert.
+IDs werden nur innerhalb einer Datenbank verwendet. Verglichen werden normalisierte
+Agency-Namen, Linienbezeichnungen und Verkehrsmittel; gleich bezeichnete Routen
+werden aggregiert. Leere Linienbezeichnungen liefern keine blockierenden Linienbefunde.
+
+Die Qualitätsprüfung unterscheidet Warnungen von Ablehnungen:
+
+- Auffällige Zeitfolge: mindestens acht verschiedene normalisierte Haltenamen,
+  mindestens 80 % der Abfahrten mit derselben Zeit wie der erste Halt und mindestens
+  sechs aufeinanderfolgende identische Zeiten. Fehlende Zeiten zählen nicht als Null.
+  Einzelne solche Trips erzeugen nur Warnungen.
+- Ein Zeitmuster blockiert erst ab 50 Trips und mindestens 10 % einer Linie;
+  jeder gezählte Trip muss mindestens acht verschiedene Halte mit dieser Startzeit
+  und regulär erlaubtem Ein- **und** Ausstieg besitzen. Der gute Referenzfeed enthält
+  Bedarfsverkehre mit langen gleichen Zeitfolgen und einseitigem Ein-/Ausstieg;
+  solche Muster sind allein kein Ablehnungsgrund. Auch nach dieser Einschränkung
+  enthält die gute Referenz bei mindestens 10 % Anteil Linien mit bis zu 37 auffälligen Trips;
+  deshalb wurde die zunächst vorgeschlagene Schwelle von 20 auf 50 kalibriert.
+- Fahrtverkürzung: Warnung ab 25 % weniger Haltereignissen insgesamt und je Trip;
+  starkes Signal ab 40 %. Voraussetzung: vorher mindestens 20 Trips und weiterhin
+  mindestens 40 % der bisherigen Tripanzahl.
+- Gruppenverlust: Warnung ab 5 % und 50 Gruppen, starkes Signal ab 10 % und 100.
+  Gruppen werden nach Agency und gemeinsam für die bestehende EFA-Agency-Auswahl
+  gezählt, **vor** dem Koordinatenfilter des EFA-Katalogs. SQLite enthält keine Koordinaten.
+  Ein starkes Signal verlangt auch den entsprechenden Verlust verschiedener
+  normalisierter Gruppennamen; bloße Parent-Zusammenlegungen genügen nicht.
+- Gemeinsam blockieren starke Fahrtverkürzung und Gruppenverlust derselben Agency,
+  wenn beide zusätzlich im gemeinsamen Kalenderfenster bestätigt werden. Verwendet
+  werden die ersten maximal 14 Tage der überlappenden Kalenderhorizonte, einschließlich
+  `calendar_dates`; weniger als sieben gemeinsame Tage erlauben nur Vergleichswarnungen.
+  Trip-/Ereigniszahlen im Fenster zählen tatsächliche Betriebstagvorkommen.
+
+Der CLI-Bericht zeigt Entscheidung, Referenz, Gruppenzahlen, Änderungen und höchstens
+fünf Tripbeispiele; weitere Befunde werden begrenzt ausgegeben und gezählt. Warnungen
+erlauben die Aktivierung. Ablehnung oder technischer Prüffehler entfernen die temporäre
+Datenbank, liefern einen Fehlerstatus und lassen den bisherigen Bestand unverändert.
+Ohne Referenz laufen nur die Zeitmusterprüfungen. Es gibt keine automatische Reparatur.
+
+Synthetische Tests: `.venv/bin/pytest -q tests/test_gtfs_quality.py`.
+Der optionale Integrationstest importiert beide lokalen Referenz-ZIPs in ein isoliertes
+temporäres Verzeichnis unter `data/` (rund 10 GB Platzbedarf), prüft die Ablehnung des
+03.10. und den unveränderten SHA-256 der zuvor akzeptierten Datenbank:
+`TALLI_GTFS_SNAPSHOT_TESTS=1 .venv/bin/pytest -q -s tests/test_gtfs_quality.py -k real_snapshot`.
+
 Unterstützt: `stops`, `routes`, `trips`, `stop_times`, `calendar`, `calendar_dates`, Stationsgruppen, Gleis/Steig, Ein-/Ausstiegsverbote, Ankunfts-/Abfahrtszeiten, Verkehrstage, Tagesausnahmen, Zeiten über 24:00 und die GTFS-Servicezeitdefinition an Zeitumstellungstagen. Ziel bei Abfahrt ist der Haltestellen-/Fahrtzieltext, bei Ankunft die Starthaltestelle der Fahrt.
 
 Der Import ist auf `Europe/Berlin` ausgerichtet. Taktbasierte `frequencies.txt` werden mit einer verständlichen Fehlermeldung abgelehnt. Unbestimmte Zwischenzeiten werden nicht interpoliert und erscheinen deshalb nicht in der Tafel. Der vollständige Deutschland-Datensatz wurde hier nicht heruntergeladen oder auf Importdauer/Platzbedarf vermessen.

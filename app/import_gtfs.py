@@ -9,6 +9,7 @@ import tempfile
 import uuid
 from zipfile import ZipFile
 from .database import SCHEMA
+from .gtfs_quality import check_quality, QualityError
 
 
 def seconds(value):
@@ -86,7 +87,9 @@ def import_feed(archive_path: Path, db_path: Path):
             db.execute("INSERT INTO metadata VALUES ('import_id', ?)", (uuid.uuid4().hex,))
         db.execute("ANALYZE")
         db.close()
+        report = check_quality(Path(temporary), db_path if db_path.exists() else None)
         os.replace(temporary, db_path)
+        return report
     except BaseException:
         db.close()
         Path(temporary).unlink(missing_ok=True)
@@ -98,7 +101,11 @@ def main():
     parser.add_argument("archive", type=Path)
     parser.add_argument("--database", type=Path, default=Path(os.getenv("DATABASE_PATH", "data/gtfs.sqlite")))
     args = parser.parse_args()
-    import_feed(args.archive, args.database)
+    try:
+        report = import_feed(args.archive, args.database)
+    except QualityError as error:
+        parser.exit(1, str(error) + '\n')
+    print(report.render())
     print(f"GTFS importiert: {args.database}")
 
 
