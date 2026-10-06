@@ -1,5 +1,5 @@
 import asyncio
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 import time
 from zipfile import ZipFile
 import httpx
@@ -107,6 +107,16 @@ def test_explicit_zero_delay_is_realtime():
     stop.departure.delay = 0
     apply(j, u)
     assert j.realtime and j.delay_minutes == 0 and j.realtime == NOW
+
+
+@pytest.mark.parametrize('seconds,expected', [
+    (0, 0), (1, 0), (59, 0), (60, 1), (61, 1),
+    (-1, 0), (-59, 0), (-60, -1), (-61, -1),
+])
+def test_delay_minutes_counts_complete_minutes(seconds, expected):
+    j = journey()
+    j.realtime = j.scheduled + timedelta(seconds=seconds)
+    assert j.delay_minutes == expected
 
 
 def test_delay_and_arrival_are_separate():

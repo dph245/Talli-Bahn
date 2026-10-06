@@ -78,7 +78,7 @@ class Departure(BaseModel):
     def delay_minutes(self) -> int | None:
         if self.realtime is None:
             return None
-        return math.ceil((self.realtime.timestamp() - self.scheduled.timestamp()) / 60)
+        return math.trunc((self.realtime.timestamp() - self.scheduled.timestamp()) / 60)
 
 
 class Board(BaseModel):
