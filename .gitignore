@@ -5,6 +5,5 @@ __pycache__/
 data/*
 !data/.gitkeep
 .env
-latest.zip
-latest_geamt.zip
+latest*.zip
 AGENTS.md
